@@ -98,6 +98,21 @@ AI generates a Markdown summary of each pull. You can also open a **chat** on an
 
 ---
 
+## Prompt Templates
+
+Ready-made analysis prompt templates for the **Claude Code (CLI)** provider are included in [`docs/prompts/`](docs/prompts/):
+
+| File | Language |
+|---|---|
+| [`analysis-prompt-ru.md`](docs/prompts/analysis-prompt-ru.md) | Russian |
+| [`analysis-prompt-en.md`](docs/prompts/analysis-prompt-en.md) | English |
+
+Each template walks Claude through a full analysis workflow: fetch the commit diff, match it to an existing GitLed record, write a structured Markdown description, and send a `PUT` request to save it — all via bash commands.
+
+Copy the content into **Settings → Analysis prompt template** to use it.
+
+---
+
 ## Multilingual UI
 
 The interface ships with **Russian** and **English** built in.  
@@ -210,6 +225,15 @@ npm run dev
 - Мультиязычный интерфейс — RU/EN встроены, поддержка кастомных JSON-файлов локализации
 - Тёмная и светлая тема
 - Настройка шрифта кода
+
+### Шаблоны промптов
+
+Готовые шаблоны для провайдера **Claude Code (CLI)** находятся в [`docs/prompts/`](docs/prompts/):
+
+- [`analysis-prompt-ru.md`](docs/prompts/analysis-prompt-ru.md) — русский
+- [`analysis-prompt-en.md`](docs/prompts/analysis-prompt-en.md) — английский
+
+Вставь содержимое в **Settings → Analysis prompt template**.
 
 ### AI-провайдеры
 

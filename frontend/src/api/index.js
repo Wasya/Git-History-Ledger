@@ -1,0 +1,46 @@
+const BASE = '/api';
+
+async function request(url, options = {}) {
+  const res = await fetch(BASE + url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || res.statusText);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+export const api = {
+  // Projects
+  getProjects: () => request('/projects'),
+  createProject: (data) => request('/projects', { method: 'POST', body: JSON.stringify(data) }),
+  deleteProject: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
+
+  // Git Pull
+  gitPull: (projectId) => request(`/projects/${projectId}/pull`, { method: 'POST' }),
+  gitPullOnly: (projectId) => request(`/projects/${projectId}/pull?noai=1`, { method: 'POST' }),
+
+  // Commits
+  getCommits: (projectId, search) => {
+    const p = new URLSearchParams();
+    if (projectId) p.set('project_id', projectId);
+    if (search) p.set('search', search);
+    const qs = p.toString() ? '?' + p.toString() : '';
+    return request(`/commits${qs}`);
+  },
+  createCommit: (data) => request('/commits', { method: 'POST', body: JSON.stringify(data) }),
+  updateCommit: (id, data) => request(`/commits/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCommit: (id) => request(`/commits/${id}`, { method: 'DELETE' }),
+  askCommit: (id, data) => request(`/commits/${id}/ask`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // Settings
+  getSettings: () => request('/settings'),
+  saveSettings: (data) => request('/settings', { method: 'PUT', body: JSON.stringify(data) }),
+  getProviders: () => request('/settings/providers'),
+  testConnection: () => request('/settings/test', { method: 'POST' }),
+  getOllamaModels: () => request('/settings/ollama-models'),
+  getDefaultPrompts: () => request('/settings/default-prompts'),
+};

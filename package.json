@@ -1,0 +1,30 @@
+{
+  "name": "git-history-ledger",
+  "version": "1.0.0",
+  "description": "Local web app for tracking git pull history with AI analysis, Markdown notes, and full-text search",
+  "author": "Andrey Koshevarov",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Wasya/Git-History-Ledger.git"
+  },
+  "homepage": "https://github.com/Wasya/Git-History-Ledger#readme",
+  "keywords": [
+    "git",
+    "changelog",
+    "history",
+    "ai",
+    "sqlite",
+    "react",
+    "express"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# SQLite database and WAL files
+*.db
+*.db-shm
+*.db-wal
+
+# Personal settings (copy config.example.json → config.json to get started)
+config.json
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*

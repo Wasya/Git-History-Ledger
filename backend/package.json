@@ -1,0 +1,20 @@
+{
+  "name": "git-history-ledger-backend",
+  "version": "1.0.0",
+  "description": "Express/SQLite backend for Git History Ledger",
+  "author": "Andrey Koshevarov",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon --ignore config.json --ignore ledger.db --ignore ledger.db-wal --ignore ledger.db-shm server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  }
+}

@@ -82,6 +82,77 @@ You can also trigger `git pull` directly from the sidebar (with or without AI an
 
 ---
 
+## Automating Import from Build Scripts
+
+Instead of pasting git pull output manually, you can **POST it directly to the API** from any build script. This lets you wire up GitLed as a passive observer of your CI/build pipeline — every pull is recorded automatically.
+
+### How it works
+
+```
+POST http://localhost:3001/api/commits
+Content-Type: application/json
+
+{
+  "project_id": 1,
+  "raw_text": "=== Mon 04/28/2026 12:00:00 ============================\n<git pull output>"
+}
+```
+
+The `raw_text` field must start with the `=== date ===` header so the parser can extract the timestamp. Find your `project_id` with:
+
+```bash
+curl http://localhost:3001/api/projects
+```
+
+### Ready-made scripts
+
+Drop-in import scripts are provided in [`docs/scripts/`](docs/scripts/):
+
+| Script | Platform |
+|---|---|
+| [`gitled-import.ps1`](docs/scripts/gitled-import.ps1) | Windows (PowerShell) |
+| [`gitled-import.sh`](docs/scripts/gitled-import.sh) | Linux / macOS (bash + python3) |
+
+Both scripts are silent when GitLed is not running — they won't break your build.
+
+### Windows CMD + PowerShell example
+
+```bat
+@echo off
+cd C:\projects\my-repo
+
+git pull > git_pull.log 2>&1
+findstr /i /c:"Already up to date." git_pull.log >nul
+if "%ERRORLEVEL%"=="0" (
+    del git_pull.log 2>nul
+    exit /b
+)
+
+:: Import into GitLed (silently skipped if server is not running)
+powershell -NoProfile -ExecutionPolicy Bypass ^
+    -File "C:\path\to\gitled-import.ps1" ^
+    -PullLog "git_pull.log" -ProjectId 1
+
+:: ... your build commands here
+```
+
+### Linux / macOS bash example
+
+```bash
+#!/usr/bin/env bash
+cd /srv/projects/my-repo
+
+git pull > git_pull.log 2>&1
+grep -qi "Already up to date." git_pull.log && { rm git_pull.log; exit 0; }
+
+# Import into GitLed
+bash /path/to/gitled-import.sh git_pull.log 1
+
+# ... your build commands here
+```
+
+---
+
 ## AI Analysis
 
 Configure an AI provider in **Settings → AI provider**:
@@ -225,6 +296,22 @@ npm run dev
 - Мультиязычный интерфейс — RU/EN встроены, поддержка кастомных JSON-файлов локализации
 - Тёмная и светлая тема
 - Настройка шрифта кода
+
+### Автоматический импорт из билд-скриптов
+
+Вместо ручной вставки вывода `git pull` можно отправлять его напрямую в API из любого скрипта сборки:
+
+```
+POST http://localhost:3001/api/commits
+Content-Type: application/json
+{ "project_id": 1, "raw_text": "=== дата ===\n<вывод git pull>" }
+```
+
+Готовые скрипты — в папке [`docs/scripts/`](docs/scripts/):
+- [`gitled-import.ps1`](docs/scripts/gitled-import.ps1) — Windows PowerShell
+- [`gitled-import.sh`](docs/scripts/gitled-import.sh) — Linux / macOS
+
+Если GitLed не запущен — скрипты молча пропускают импорт и не ломают сборку.
 
 ### Шаблоны промптов
 

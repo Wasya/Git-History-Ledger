@@ -248,9 +248,10 @@ app.get('/api/projects/:id/log-preview', (req, res) => {
       const m = line.match(LOG_RE);
       if (!m) return null;
       const [, hash, date, author, message] = m;
+      const short = hash.slice(0, 8);
       const exists = db.prepare(
-        'SELECT id FROM commits WHERE project_id = ? AND commit_hash = ?'
-      ).get(project.id, hash);
+        'SELECT id FROM commits WHERE project_id = ? AND commit_hash LIKE ?'
+      ).get(project.id, `%${short}%`);
       return { hash, date, author, message, already_exists: !!exists };
     })
     .filter(Boolean);
@@ -299,9 +300,12 @@ app.post('/api/commits/import-log', (req, res) => {
 
   const saved = db.transaction(() =>
     entries
-      .filter((e) => !db.prepare(
-        'SELECT id FROM commits WHERE project_id = ? AND commit_hash = ?'
-      ).get(project_id, e.commitHash))
+      .filter((e) => {
+        const short = e.commitHash.slice(0, 8);
+        return !db.prepare(
+          'SELECT id FROM commits WHERE project_id = ? AND commit_hash LIKE ?'
+        ).get(project_id, `%${short}%`);
+      })
       .map((e) => {
         const r = insert.run(project_id, e.commitDate, e.branch, e.commitHash, e.raw_output, e.description, '');
         return db.prepare('SELECT * FROM commits WHERE id = ?').get(r.lastInsertRowid);

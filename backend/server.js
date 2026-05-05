@@ -279,7 +279,7 @@ app.post('/api/commits/import-log', (req, res) => {
     for (const hash of hashes) {
       try {
         const out = execFileSync(
-          'git', ['show', hash, '--stat', '--format=%H %ad %an : %s', '--date=short'],
+          'git', ['show', hash, '--format=%H %ad %an : %s', '--date=short'],
           { cwd: project.path, encoding: 'utf8', timeout: 10000 }
         );
         parts.push(out.trim());

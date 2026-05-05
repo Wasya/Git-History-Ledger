@@ -76,11 +76,12 @@ async function callOpenAICompatible(baseUrl, apiKey, model, prompt) {
       stream: false,
     }),
   });
+  const rawText = await res.text();
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API ${res.status}: ${text.slice(0, 400)}`);
+    throw new Error(`API ${res.status}: ${rawText.slice(0, 400)}`);
   }
-  const data = await res.json();
+  // Parse via Buffer to guarantee UTF-8 decoding regardless of Node.js fetch internals
+  const data = JSON.parse(Buffer.from(rawText).toString('utf8'));
   // Null-safe extraction — Ollama or other providers may return different shapes
   const content = data?.choices?.[0]?.message?.content;
   if (!content) {

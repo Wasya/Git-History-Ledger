@@ -23,6 +23,8 @@
     "namePlaceholder": "Мой репозиторий",
     "pathLabel": "Путь к репозиторию",
     "pathPlaceholder": "C:\\projects\\my-repo",
+    "pathHelper": "Локальный путь к уже склонированному репозиторию",
+    "pathUrlWarning": "Похоже на URL. Сначала склонируйте репозиторий локально:",
     "errorRequired": "Оба поля обязательны",
     "cancel": "Отмена",
     "submit": "Добавить проект"

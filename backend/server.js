@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
 const { execSync, execFileSync } = require('child_process');
 const db = require('./db');
 const { parseMultipleSessions, parseGitLog } = require('./parser');
@@ -227,6 +228,7 @@ app.get('/api/projects/:id/log-preview', (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
   if (!project) return res.status(404).json({ error: 'Project not found' });
   if (!project.path) return res.status(400).json({ error: 'Project path is not set' });
+  if (!fs.existsSync(project.path)) return res.status(400).json({ error: `Directory does not exist: ${project.path}` });
 
   const { from, to } = req.query;
   const args = ['log', '--format=%H %ad %an : %s', '--date=short'];
@@ -272,6 +274,7 @@ app.post('/api/commits/import-log', (req, res) => {
 
   if (hashes && Array.isArray(hashes) && hashes.length > 0) {
     if (!project.path) return res.status(400).json({ error: 'Project path is not set' });
+    if (!fs.existsSync(project.path)) return res.status(400).json({ error: `Directory does not exist: ${project.path}` });
     const parts = [];
     for (const hash of hashes) {
       try {

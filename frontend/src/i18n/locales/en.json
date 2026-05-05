@@ -23,6 +23,8 @@
     "namePlaceholder": "My Repository",
     "pathLabel": "Repository Path",
     "pathPlaceholder": "C:\\projects\\my-repo",
+    "pathHelper": "Local path to an already cloned repository",
+    "pathUrlWarning": "Looks like a URL. Clone the repository locally first:",
     "errorRequired": "Both fields are required",
     "cancel": "Cancel",
     "submit": "Add Project"

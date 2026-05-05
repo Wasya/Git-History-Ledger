@@ -279,7 +279,7 @@ app.post('/api/commits/import-log', (req, res) => {
     for (const hash of hashes) {
       try {
         const out = execFileSync(
-          'git', ['show', hash, '--format=%H %ad %an : %s', '--date=short'],
+          'git', ['show', hash, '--stat', '--format=%H %ad %an : %s', '--date=short'],
           { cwd: project.path, encoding: 'utf8', timeout: 10000 }
         );
         parts.push(out.trim());
@@ -328,8 +328,25 @@ app.post('/api/commits/:id/analyze', (req, res) => {
   const config = getConfig();
   if (!config.ai_provider) return res.status(400).json({ error: 'AI provider not configured' });
 
+  // For single-hash commits (git log import) fetch the full diff for AI.
+  // For range commits (FROM..TO from git pull) raw_output already has enough context.
+  const getContentForAI = () => {
+    const isSingleHash = commit.commit_hash && !commit.commit_hash.includes('..');
+    if (isSingleHash && project?.path && fs.existsSync(project.path)) {
+      try {
+        return execFileSync(
+          'git', ['show', commit.commit_hash, '--format=%H %ad %an : %s', '--date=short'],
+          { cwd: project.path, encoding: 'utf8', timeout: 15000 }
+        );
+      } catch (e) {
+        console.warn('[analyze] git show failed, using raw_output:', e.message);
+      }
+    }
+    return commit.raw_output;
+  };
+
   Promise.resolve()
-    .then(() => analyzeWithAI(config, commit.raw_output, project?.name || 'Unknown', project?.path || ''))
+    .then(() => analyzeWithAI(config, getContentForAI(), project?.name || 'Unknown', project?.path || ''))
     .then((aiDescription) => {
       const description = aiDescription
         ? `${aiDescription}\n\n---\n\n${commit.description || ''}`

@@ -231,7 +231,7 @@ app.get('/api/projects/:id/log-preview', (req, res) => {
   if (!fs.existsSync(project.path)) return res.status(400).json({ error: `Directory does not exist: ${project.path}` });
 
   const { from, to } = req.query;
-  const args = ['log', '--format=%H %ad %an : %s', '--date=short'];
+  const args = ['log', '--reverse', '--format=%H %ad %an : %s', '--date=short'];
   if (from) args.push(`--after=${from}`);
   if (to)   args.push(`--before=${to}`);
 

@@ -12,6 +12,8 @@
     "search": "Search hash, branch, description...",
     "import": "Import",
     "importTooltip": "Import git pull output",
+    "importPull": "Import git pull",
+    "importLog": "Git history",
     "settingsTooltip": "Settings",
     "themeTooltip": "Toggle theme"
   },
@@ -35,9 +37,36 @@
     "notesLabel": "Notes",
     "notesOptional": "(optional)",
     "notesPlaceholder": "Add any additional context or notes...",
+    "analyzeAfterImport": "Run AI analysis after import",
     "cancel": "Cancel",
     "importing": "Importing...",
     "submit": "Parse & Import"
+  },
+  "importLog": {
+    "title": "Import git history",
+    "tabAuto": "Auto (from project path)",
+    "tabPaste": "Paste output",
+    "projectLabel": "Project",
+    "fromLabel": "From",
+    "toLabel": "To",
+    "previewBtn": "Preview",
+    "previewLoading": "Loading...",
+    "previewEmpty": "No commits found for this period",
+    "previewFound": "Found: {total} commits, {skipped} already imported",
+    "alreadyImported": "already in GitLed",
+    "pasteLabel": "Git log output",
+    "pasteHint": "Run this command and paste the output:",
+    "analyzeAfterImport": "Run AI analysis after import",
+    "importBtn": "Import ({count})",
+    "importing": "Importing...",
+    "analyzing": "Analyzing {n}/{total}...",
+    "cancel": "Cancel",
+    "errorNoProject": "Select a project",
+    "errorNoText": "Paste git log output",
+    "errorNoDates": "Click Preview to load commits first",
+    "pathInfo": "Backend will run git log in: {path}",
+    "pathMissing": "Project path is not set — auto mode unavailable.",
+    "noNewCommits": "All found commits are already imported"
   },
   "commitTree": {
     "empty": "No commits yet. Import git pull output to get started."
@@ -111,6 +140,8 @@
     "importedOne": "{name}: imported {count} entry",
     "importedMany": "{name}: imported {count} entries",
     "gitPullError": "Git Pull error: {message}",
-    "aiError": "AI analysis failed: {message}"
+    "aiError": "AI analysis failed: {message}",
+    "analyzingProgress": "Analyzing {n} of {total}...",
+    "analyzeError": "AI analysis error: {message}"
   }
 }

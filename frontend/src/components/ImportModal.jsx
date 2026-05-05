@@ -7,6 +7,7 @@ export default function ImportModal({ projects, selectedProjectId, onClose, onIm
   const [rawText, setRawText] = useState('');
   const [notes, setNotes] = useState('');
   const [projectId, setProjectId] = useState(selectedProjectId || (projects[0]?.id ?? ''));
+  const [analyzeAfterImport, setAnalyzeAfterImport] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +23,12 @@ export default function ImportModal({ projects, selectedProjectId, onClose, onIm
     if (!rawText.trim()) { setError(t('import.errorNoOutput')); return; }
     setLoading(true);
     try {
-      await onImport({ project_id: Number(projectId), raw_text: rawText.trim(), notes: notes.trim() });
+      await onImport({
+        project_id: Number(projectId),
+        raw_text: rawText.trim(),
+        notes: notes.trim(),
+        analyzeAfterImport,
+      });
       onClose();
     } catch (err) {
       setError(err.message);
@@ -81,6 +87,16 @@ export default function ImportModal({ projects, selectedProjectId, onClose, onIm
               onChange={(e) => setNotes(e.target.value)}
             />
           </div>
+
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={analyzeAfterImport}
+              onChange={(e) => setAnalyzeAfterImport(e.target.checked)}
+              className="rounded border-gray-300 text-indigo-600"
+            />
+            <span className="text-sm">{t('import.analyzeAfterImport')}</span>
+          </label>
         </form>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
           <button type="button" onClick={onClose} className="btn-secondary">{t('import.cancel')}</button>

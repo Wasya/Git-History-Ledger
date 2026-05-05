@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import CommitTree from './components/CommitTree';
 import ImportModal from './components/ImportModal';
+import ImportLogModal from './components/ImportLogModal';
 import AddProjectModal from './components/AddProjectModal';
 import SettingsModal from './components/SettingsModal';
 import { useI18n } from './i18n/I18nContext';
@@ -84,6 +85,7 @@ export default function App() {
 
   // Modals
   const [showImport, setShowImport] = useState(false);
+  const [showImportLog, setShowImportLog] = useState(false);
   const [showAddProject, setShowAddProject] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -215,14 +217,44 @@ export default function App() {
   };
 
   const handleImport = async (data) => {
-    const result = await api.createCommit(data);
-    const newCommits = Array.isArray(result) ? result : [result];
+    const { analyzeAfterImport, ...commitData } = data;
+    const result = await api.createCommit(commitData);
+    let newCommits = Array.isArray(result) ? result : [result];
+
+    if (analyzeAfterImport && newCommits.length > 0) {
+      for (let i = 0; i < newCommits.length; i++) {
+        addToast(t('app.analyzingProgress', { n: i + 1, total: newCommits.length }), 'info', 8000);
+        try {
+          newCommits[i] = await api.analyzeCommit(newCommits[i].id);
+        } catch (e) {
+          addToast(t('app.analyzeError', { message: e.message }), 'error', 6000);
+        }
+      }
+    }
+
     const filtered = debouncedSearch
       ? newCommits.filter((c) => matchesSearch(c, debouncedSearch))
       : newCommits;
     if (filtered.length > 0) {
       setCommits((prev) => [...filtered, ...prev]);
     }
+  };
+
+  const handleImportLog = (newCommits) => {
+    if (!newCommits?.length) return;
+    const filtered = debouncedSearch
+      ? newCommits.filter((c) => matchesSearch(c, debouncedSearch))
+      : newCommits;
+    if (filtered.length > 0) {
+      setCommits((prev) => [...filtered, ...prev]);
+    }
+    const n = newCommits.length;
+    addToast(
+      n === 1
+        ? t('app.importedOne', { name: selectedProject?.name, count: n })
+        : t('app.importedMany', { name: selectedProject?.name, count: n }),
+      'success'
+    );
   };
 
   const handleUpdateCommit = async (id, data) => {
@@ -256,6 +288,7 @@ export default function App() {
           search={search}
           onSearch={setSearch}
           onImport={() => setShowImport(true)}
+          onImportLog={() => setShowImportLog(true)}
           theme={theme}
           onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
           hasProject={!!selectedProjectId}
@@ -321,6 +354,15 @@ export default function App() {
           selectedProjectId={selectedProjectId}
           onClose={() => setShowImport(false)}
           onImport={handleImport}
+        />
+      )}
+
+      {showImportLog && (
+        <ImportLogModal
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          onClose={() => setShowImportLog(false)}
+          onImportLog={handleImportLog}
         />
       )}
 

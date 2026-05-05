@@ -12,6 +12,8 @@
     "search": "Поиск по хэшу, ветке, описанию...",
     "import": "Импорт",
     "importTooltip": "Импортировать git pull вывод",
+    "importPull": "Импорт git pull",
+    "importLog": "История git",
     "settingsTooltip": "Настройки",
     "themeTooltip": "Переключить тему"
   },
@@ -35,9 +37,36 @@
     "notesLabel": "Заметки",
     "notesOptional": "(необязательно)",
     "notesPlaceholder": "Добавьте контекст или заметки...",
+    "analyzeAfterImport": "Запустить AI-анализ после импорта",
     "cancel": "Отмена",
     "importing": "Импортирую...",
     "submit": "Разобрать и импортировать"
+  },
+  "importLog": {
+    "title": "Импорт истории git",
+    "tabAuto": "Авто (из пути проекта)",
+    "tabPaste": "Вставить вывод",
+    "projectLabel": "Проект",
+    "fromLabel": "С даты",
+    "toLabel": "По дату",
+    "previewBtn": "Предпросмотр",
+    "previewLoading": "Загружаю...",
+    "previewEmpty": "Коммитов в этом периоде не найдено",
+    "previewFound": "Найдено: {total} коммитов, {skipped} уже импортировано",
+    "alreadyImported": "уже в GitLed",
+    "pasteLabel": "Вывод git log",
+    "pasteHint": "Запустите команду и вставьте вывод:",
+    "analyzeAfterImport": "Запустить AI-анализ после импорта",
+    "importBtn": "Импортировать ({count})",
+    "importing": "Импортирую...",
+    "analyzing": "Анализирую {n}/{total}...",
+    "cancel": "Отмена",
+    "errorNoProject": "Выберите проект",
+    "errorNoText": "Вставьте вывод git log",
+    "errorNoDates": "Нажмите «Предпросмотр» для загрузки коммитов",
+    "pathInfo": "Бэкенд запустит git log в: {path}",
+    "pathMissing": "Путь проекта не указан — авто-режим недоступен.",
+    "noNewCommits": "Все найденные коммиты уже импортированы"
   },
   "commitTree": {
     "empty": "Нет записей. Импортируйте вывод git pull для начала работы."
@@ -111,6 +140,8 @@
     "importedOne": "{name}: импортировано {count} запись",
     "importedMany": "{name}: импортировано {count} записей",
     "gitPullError": "Git Pull ошибка: {message}",
-    "aiError": "AI анализ не выполнен: {message}"
+    "aiError": "AI анализ не выполнен: {message}",
+    "analyzingProgress": "Анализирую {n} из {total}...",
+    "analyzeError": "Ошибка AI-анализа: {message}"
   }
 }

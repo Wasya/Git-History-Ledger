@@ -35,6 +35,15 @@ export const api = {
   updateCommit: (id, data) => request(`/commits/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCommit: (id) => request(`/commits/${id}`, { method: 'DELETE' }),
   askCommit: (id, data) => request(`/commits/${id}/ask`, { method: 'POST', body: JSON.stringify(data) }),
+  analyzeCommit: (id) => request(`/commits/${id}/analyze`, { method: 'POST' }),
+  logPreview: (projectId, from, to) => {
+    const p = new URLSearchParams();
+    if (from) p.set('from', from);
+    if (to)   p.set('to', to);
+    const qs = p.toString() ? '?' + p.toString() : '';
+    return request(`/projects/${projectId}/log-preview${qs}`);
+  },
+  importLog: (data) => request('/commits/import-log', { method: 'POST', body: JSON.stringify(data) }),
 
   // Settings
   getSettings: () => request('/settings'),

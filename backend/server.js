@@ -1,8 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const db = require('./db');
-const { parseMultipleSessions } = require('./parser');
+const { parseMultipleSessions, parseGitLog } = require('./parser');
 const { getConfig, saveConfig } = require('./config');
 const { analyzeWithAI, askWithContext, testConnection, PROVIDER_DEFAULTS, DEFAULT_PROMPT_RU, DEFAULT_PROMPT_EN } = require('./ai');
 
@@ -217,6 +217,122 @@ app.post('/api/commits/:id/ask', (req, res) => {
     .then((reply) => res.json({ reply }))
     .catch((err) => {
       console.error('[commits/ask]', err.message);
+      res.status(500).json({ error: err.message });
+    });
+});
+
+// ── Git Log Preview ───────────────────────────────────────────────────────
+
+app.get('/api/projects/:id/log-preview', (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  if (!project.path) return res.status(400).json({ error: 'Project path is not set' });
+
+  const { from, to } = req.query;
+  const args = ['log', '--format=%H %ad %an : %s', '--date=short'];
+  if (from) args.push(`--after=${from}`);
+  if (to)   args.push(`--before=${to}`);
+
+  let output;
+  try {
+    output = execFileSync('git', args, { cwd: project.path, encoding: 'utf8', timeout: 15000 });
+  } catch (err) {
+    return res.status(400).json({ error: err.stderr || err.message });
+  }
+
+  const LOG_RE = /^([a-f0-9]{7,40})\s+(\d{4}-\d{2}-\d{2})\s+(.+?)\s*:\s*(.+)/;
+  const commits = output
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((line) => {
+      const m = line.match(LOG_RE);
+      if (!m) return null;
+      const [, hash, date, author, message] = m;
+      const exists = db.prepare(
+        'SELECT id FROM commits WHERE project_id = ? AND commit_hash = ?'
+      ).get(project.id, hash);
+      return { hash, date, author, message, already_exists: !!exists };
+    })
+    .filter(Boolean);
+
+  res.json(commits);
+});
+
+// ── Import git log ────────────────────────────────────────────────────────
+
+app.post('/api/commits/import-log', (req, res) => {
+  const { project_id, hashes, raw_text } = req.body;
+  if (!project_id) return res.status(400).json({ error: 'project_id required' });
+
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(project_id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  let entries;
+
+  if (hashes && Array.isArray(hashes) && hashes.length > 0) {
+    if (!project.path) return res.status(400).json({ error: 'Project path is not set' });
+    const parts = [];
+    for (const hash of hashes) {
+      try {
+        const out = execFileSync(
+          'git', ['show', hash, '--stat', '--format=%H %ad %an : %s', '--date=short'],
+          { cwd: project.path, encoding: 'utf8', timeout: 10000 }
+        );
+        parts.push(out.trim());
+      } catch (e) {
+        console.error(`[import-log] git show ${hash} failed:`, e.message);
+      }
+    }
+    entries = parseGitLog(parts.join('\n\n'));
+  } else if (raw_text) {
+    entries = parseGitLog(raw_text);
+  } else {
+    return res.status(400).json({ error: 'hashes or raw_text required' });
+  }
+
+  if (!entries.length) return res.status(400).json({ error: 'No commits parsed from input' });
+
+  const insert = db.prepare(`
+    INSERT INTO commits (project_id, commit_date, branch, commit_hash, raw_output, description, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const saved = db.transaction(() =>
+    entries
+      .filter((e) => !db.prepare(
+        'SELECT id FROM commits WHERE project_id = ? AND commit_hash = ?'
+      ).get(project_id, e.commitHash))
+      .map((e) => {
+        const r = insert.run(project_id, e.commitDate, e.branch, e.commitHash, e.raw_output, e.description, '');
+        return db.prepare('SELECT * FROM commits WHERE id = ?').get(r.lastInsertRowid);
+      })
+  )();
+
+  res.status(201).json(saved);
+});
+
+// ── Analyze existing commit with AI ───────────────────────────────────────
+
+app.post('/api/commits/:id/analyze', (req, res) => {
+  const commit = db.prepare('SELECT * FROM commits WHERE id = ?').get(req.params.id);
+  if (!commit) return res.status(404).json({ error: 'Commit not found' });
+
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(commit.project_id);
+  const config = getConfig();
+  if (!config.ai_provider) return res.status(400).json({ error: 'AI provider not configured' });
+
+  Promise.resolve()
+    .then(() => analyzeWithAI(config, commit.raw_output, project?.name || 'Unknown', project?.path || ''))
+    .then((aiDescription) => {
+      const description = aiDescription
+        ? `${aiDescription}\n\n---\n\n${commit.description || ''}`
+        : commit.description;
+      db.prepare('UPDATE commits SET description = ? WHERE id = ?').run(description, commit.id);
+      return db.prepare('SELECT * FROM commits WHERE id = ?').get(commit.id);
+    })
+    .then((updated) => res.json(updated))
+    .catch((err) => {
+      console.error('[commits/analyze]', err.message);
       res.status(500).json({ error: err.message });
     });
 });

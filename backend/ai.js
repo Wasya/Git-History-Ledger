@@ -11,52 +11,38 @@ const PROVIDER_DEFAULTS = {
   ollama:     { base_url: 'http://localhost:11434/v1',     model: '' },
 };
 
-const DEFAULT_PROMPT_RU = `Ты — технический аналитик кода. Проанализируй diff коммита для проекта "{projectName}".
-
-Правила:
-- Начни ответ СРАЗУ с анализа — без вступлений, без пересказа инструкций, без "давайте разберём"
-- Используй ровно три раздела с заголовками, указанными ниже
-- Пиши кратко и по существу изменений, только факты
-
-Формат ответа (заполни каждый раздел своим анализом):
+const DEFAULT_PROMPT_RU = `Ты — технический аналитик изменений кода. Проанализируй вывод git pull для проекта "{projectName}" и напиши краткое резюме в формате Markdown.
 
 ## Что изменилось
-[Изменённые модули и компоненты на основе путей файлов]
+- Перечисли изменённые модули/компоненты (на основе путей файлов)
 
 ## Характер изменений
-[Тип: новая функция / баг-фикс / рефакторинг / конфиг / зависимости — и краткое пояснение]
+- Новые функции / баг-фиксы / рефакторинг / зависимости / конфиги
 
 ## Ключевые файлы
-[Наиболее значимые файлы с пояснением что именно в них изменилось]
+- Перечисли наиболее значимые файлы с кратким пояснением
 
----
-Проект: {projectName}
-Diff:
+Будь лаконичен. Не повторяй сырой вывод. Отвечай на русском.
+
+Вывод git pull:
 \`\`\`
 {gitOutput}
 \`\`\``;
 
-const DEFAULT_PROMPT_EN = `You are a code change analyst. Analyze the git diff for project "{projectName}".
-
-Rules:
-- Start your response DIRECTLY with the analysis — no preamble, no plan, no self-explanation
-- Use exactly three sections with the headers shown below
-- Be concise and factual, focused only on the actual changes
-
-Output format (fill each section with your analysis):
+const DEFAULT_PROMPT_EN = `You are a code change analyst. Analyze the git pull output for project "{projectName}" and write a concise Markdown summary.
 
 ## What changed
-[Changed modules/components based on file paths]
+- List changed modules/components (based on file paths)
 
-## Type of changes
-[New feature / bug fix / refactoring / config / dependencies — with brief explanation]
+## Nature of changes
+- New features / bug fixes / refactoring / dependencies / configs
 
 ## Key files
-[Most significant files with explanation of what specifically changed in each]
+- List the most significant files with a brief explanation
 
----
-Project: {projectName}
-Diff:
+Be concise. Don't repeat raw output.
+
+Git pull output:
 \`\`\`
 {gitOutput}
 \`\`\``;

@@ -157,30 +157,41 @@ bash /path/to/gitled-import.sh git_pull.log 1
 
 Configure an AI provider in **Settings → AI provider**:
 
-| Provider | Requires |
-|---|---|
-| xAI (Grok) | API key |
-| OpenAI | API key |
-| Anthropic (Claude API) | API key |
-| **Claude Code (CLI)** | Claude Code subscription — no key needed |
-| Ollama (local) | Running Ollama instance |
+| Provider | Requires | Notes |
+|---|---|---|
+| **Claude Code (CLI)** | Claude Code subscription | ⭐ Recommended — best analysis quality |
+| Anthropic (Claude API) | API key | Excellent results with default prompt |
+| xAI (Grok) | API key | Requires a different prompt style (see below) |
+| OpenAI | API key | Works well; short direct prompts preferred |
+| Ollama (local) | Running Ollama instance | Quality depends on model; Qwen2.5 recommended |
 
-AI generates a Markdown summary of each pull. You can also open a **chat** on any commit to ask follow-up questions. The prompt template is fully customizable in Settings.
+AI generates a Markdown summary of each pull or commit. You can also open a **chat** on any commit to ask follow-up questions. The prompt template is fully customizable in Settings.
+
+> **Note:** This app was developed and tested primarily with **Claude Code (CLI)**, which produces the most detailed and context-aware analyses. The default prompt template is designed for Claude and may not work well with other models without adjustment — see [Prompt Templates](#prompt-templates) below.
 
 ---
 
 ## Prompt Templates
 
-Ready-made analysis prompt templates for the **Claude Code (CLI)** provider are included in [`docs/prompts/`](docs/prompts/):
+The default prompt template is tuned for **Claude**. Different AI models interpret prompt structure very differently, which leads to dramatically different output quality.
 
-| File | Language |
-|---|---|
-| [`analysis-prompt-ru.md`](docs/prompts/analysis-prompt-ru.md) | Russian |
-| [`analysis-prompt-en.md`](docs/prompts/analysis-prompt-en.md) | English |
+**Claude** treats structured Markdown headers as an output template to fill in.  
+**Grok / GPT** often treats the same headers as a to-do list to explain and paraphrase.
 
-Each template walks Claude through a full analysis workflow: fetch the commit diff, match it to an existing GitLed record, write a structured Markdown description, and send a `PUT` request to save it — all via bash commands.
+Ready-made templates for each provider are in [`docs/prompts/`](docs/prompts/):
 
-Copy the content into **Settings → Analysis prompt template** to use it.
+| File | Provider | Language |
+|---|---|---|
+| [`analysis-prompt-ru.md`](docs/prompts/analysis-prompt-ru.md) | Claude Code (CLI) | Russian |
+| [`analysis-prompt-en.md`](docs/prompts/analysis-prompt-en.md) | Claude Code (CLI) | English |
+| [`analysis-prompt-xai-ru.md`](docs/prompts/analysis-prompt-xai-ru.md) | xAI Grok / OpenAI / Ollama | Russian |
+| [`analysis-prompt-xai-en.md`](docs/prompts/analysis-prompt-xai-en.md) | xAI Grok / OpenAI / Ollama | English |
+
+The **Claude Code CLI** templates include a full workflow: fetch the diff, match records in GitLed, write analysis, and save via API — all through bash commands.
+
+The **xAI / OpenAI / Ollama** templates use a minimal, direct style that works better with models that tend to over-explain structured instructions.
+
+Copy the relevant template content into **Settings → Analysis prompt template**.
 
 ---
 
@@ -313,24 +324,33 @@ Content-Type: application/json
 
 Если GitLed не запущен — скрипты молча пропускают импорт и не ломают сборку.
 
-### Шаблоны промптов
-
-Готовые шаблоны для провайдера **Claude Code (CLI)** находятся в [`docs/prompts/`](docs/prompts/):
-
-- [`analysis-prompt-ru.md`](docs/prompts/analysis-prompt-ru.md) — русский
-- [`analysis-prompt-en.md`](docs/prompts/analysis-prompt-en.md) — английский
-
-Вставь содержимое в **Settings → Analysis prompt template**.
-
 ### AI-провайдеры
 
-| Провайдер | Требует |
+| Провайдер | Требует | Заметки |
+|---|---|---|
+| **Claude Code (CLI)** | Подписка Claude Code | ⭐ Рекомендуется — лучшее качество анализа |
+| Anthropic (Claude API) | API ключ | Отличные результаты с дефолтным промптом |
+| xAI (Grok) | API ключ | Требует другой стиль промпта (см. ниже) |
+| OpenAI | API ключ | Работает хорошо; предпочтительны короткие промпты |
+| Ollama (локальный) | Запущенный Ollama | Качество зависит от модели; рекомендуется Qwen2.5 |
+
+Приложение разработано и протестировано прежде всего с **Claude Code (CLI)**, который даёт наиболее детальный и контекстный анализ. Дефолтный промпт настроен под Claude.
+
+### Шаблоны промптов
+
+Разные AI-модели кардинально по-разному интерпретируют структуру промпта:
+
+**Claude** воспринимает заголовки Markdown как шаблон для заполнения.  
+**Grok / GPT** нередко воспринимают те же заголовки как список задач для пересказа.
+
+Готовые шаблоны под каждый провайдер — в папке [`docs/prompts/`](docs/prompts/):
+
+| Файл | Провайдер |
 |---|---|
-| xAI (Grok) | API ключ |
-| OpenAI | API ключ |
-| Anthropic (Claude API) | API ключ |
-| **Claude Code (CLI)** | Подписка Claude Code — ключ не нужен |
-| Ollama (локальный) | Запущенный Ollama |
+| [`analysis-prompt-ru.md`](docs/prompts/analysis-prompt-ru.md) | Claude Code (CLI) |
+| [`analysis-prompt-xai-ru.md`](docs/prompts/analysis-prompt-xai-ru.md) | xAI Grok / OpenAI / Ollama |
+
+Вставь содержимое нужного шаблона в **Settings → Analysis prompt template**.
 
 ### Лицензия
 

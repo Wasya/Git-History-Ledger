@@ -14,6 +14,8 @@ Paste or auto-pull from your repositories — get a structured, browsable histor
 ## Features
 
 - **Import git pull output** — paste manually or trigger `git pull` directly from the UI
+- **Import git log history** — select commits by date range with a preview list and per-commit AI analysis
+- **Auto-analyze after import** — optional AI summary generated immediately on import
 - **Tree view** — commits grouped by Year → Month → Week → Day
 - **AI analysis** — automatic summaries via xAI, OpenAI, Anthropic, Claude Code CLI, or Ollama (local)
 - **Chat with commits** — ask follow-up questions about any change
@@ -82,6 +84,21 @@ You can also trigger `git pull` directly from the sidebar (with or without AI an
 
 ---
 
+## Git Log Import
+
+In addition to `git pull` output, you can import **historical commits** directly from a repository.
+
+Open **Import → Import git log** in the top bar. Two modes are available:
+
+- **Auto** — pick a date range, click **Preview**, select the commits you want, and import. GitLed fetches the log from the repository path configured for the project and skips duplicates automatically.
+- **Paste** — paste raw `git log` output and click **Import**.
+
+Both modes support **Analyze after import** — each imported commit is sent to AI immediately after being saved.
+
+The display format for imported commits matches the standard `git pull` view: file stats only (no full diff lines), keeping the journal readable.
+
+---
+
 ## Automating Import from Build Scripts
 
 Instead of pasting git pull output manually, you can **POST it directly to the API** from any build script. This lets you wire up GitLed as a passive observer of your CI/build pipeline — every pull is recorded automatically.
@@ -117,6 +134,8 @@ Both scripts are silent when GitLed is not running — they won't break your bui
 
 ### Windows CMD + PowerShell example
 
+If your build script also captures a commit details line (hash / author / message) into a separate log file, pass it via `-CommitLog` so GitLed can parse the full commit info. Make sure the import runs **after** any scripts that produce that file:
+
 ```bat
 @echo off
 cd C:\projects\my-repo
@@ -128,13 +147,20 @@ if "%ERRORLEVEL%"=="0" (
     exit /b
 )
 
+:: Run build / commit scripts that produce git_pull_commit.log
+call C:\scripts\AddCommits.cmd
+
 :: Import into GitLed (silently skipped if server is not running)
 powershell -NoProfile -ExecutionPolicy Bypass ^
     -File "C:\path\to\gitled-import.ps1" ^
-    -PullLog "git_pull.log" -ProjectId 1
+    -PullLog "git_pull.log" ^
+    -CommitLog "git_pull_commit.log" ^
+    -ProjectId 1
 
 :: ... your build commands here
 ```
+
+The `-CommitLog` parameter is optional. When provided, its content is appended to the payload so the parser can extract the commit hash, author, and subject line.
 
 ### Linux / macOS bash example
 
@@ -176,7 +202,7 @@ AI generates a Markdown summary of each pull or commit. You can also open a **ch
 The default prompt template is tuned for **Claude**. Different AI models interpret prompt structure very differently, which leads to dramatically different output quality.
 
 **Claude** treats structured Markdown headers as an output template to fill in.  
-**Grok / GPT** often treats the same headers as a to-do list to explain and paraphrase.
+**Grok / GPT** often treats the same headers as a to-do list to explain and paraphrase — resulting in verbose, instruction-restating output instead of actual code analysis.
 
 Ready-made templates for each provider are in [`docs/prompts/`](docs/prompts/):
 
@@ -189,9 +215,7 @@ Ready-made templates for each provider are in [`docs/prompts/`](docs/prompts/):
 
 The **Claude Code CLI** templates include a full workflow: fetch the diff, match records in GitLed, write analysis, and save via API — all through bash commands.
 
-The **xAI / OpenAI / Ollama** templates use a minimal, direct style that works better with models that tend to over-explain structured instructions.
-
-Copy the relevant template content into **Settings → Analysis prompt template**.
+The **xAI / OpenAI / Ollama** templates use a minimal, direct imperative style that works better with models that tend to over-explain structured instructions. If you switch providers, copy the matching template into **Settings → Analysis prompt template**.
 
 ---
 
@@ -256,15 +280,23 @@ GET    /api/projects
 POST   /api/projects
 DELETE /api/projects/:id
 
+GET    /api/projects/:id/log-preview?from=YYYY-MM-DD&to=YYYY-MM-DD
+POST   /api/projects/:id/pull        ← git pull + optional AI analysis
+
 GET    /api/commits?project_id=&search=
-POST   /api/commits
+POST   /api/commits                  ← import from raw_text (build scripts)
 PUT    /api/commits/:id
 DELETE /api/commits/:id
-POST   /api/commits/:id/ask      ← AI chat
+POST   /api/commits/:id/ask          ← AI chat
+POST   /api/commits/:id/analyze      ← (re-)analyze with AI
+POST   /api/commits/import-log       ← import by commit hashes or raw git log
 
 GET    /api/settings
 PUT    /api/settings
-POST   /api/settings/test        ← test AI connection
+POST   /api/settings/test            ← test AI connection
+GET    /api/settings/providers
+GET    /api/settings/default-prompts
+GET    /api/settings/ollama-models
 ```
 
 ---
@@ -298,6 +330,8 @@ npm run dev
 ### Основные возможности
 
 - Импорт вывода `git pull` — вручную или прямо из интерфейса
+- Импорт истории коммитов из `git log` — выбор по диапазону дат с предпросмотром и AI-анализом каждого коммита
+- Автоматический AI-анализ сразу после импорта
 - Дерево коммитов: Год → Месяц → Неделя → День
 - AI-анализ изменений (xAI, OpenAI, Anthropic, Claude Code CLI, Ollama)
 - Чат с коммитом — задавай уточняющие вопросы об изменениях
@@ -307,6 +341,19 @@ npm run dev
 - Мультиязычный интерфейс — RU/EN встроены, поддержка кастомных JSON-файлов локализации
 - Тёмная и светлая тема
 - Настройка шрифта кода
+
+### Импорт истории коммитов
+
+Помимо вывода `git pull`, можно импортировать **историю коммитов** прямо из репозитория.
+
+Откройте **Import → Import git log** в верхней панели. Доступны два режима:
+
+- **Auto** — задай диапазон дат, нажми **Preview**, отметь нужные коммиты и импортируй. GitLed получает лог из пути репозитория, настроенного для проекта, и автоматически пропускает дубликаты.
+- **Paste** — вставь вывод `git log` вручную и нажми **Import**.
+
+В обоих режимах доступен флаг **Analyze after import** — каждый импортированный коммит сразу отправляется на AI-анализ.
+
+Формат отображения импортированных коммитов совпадает с обычным видом `git pull`: только статистика по файлам, без полного diff — журнал остаётся читаемым.
 
 ### Автоматический импорт из билд-скриптов
 
@@ -323,6 +370,22 @@ Content-Type: application/json
 - [`gitled-import.sh`](docs/scripts/gitled-import.sh) — Linux / macOS
 
 Если GitLed не запущен — скрипты молча пропускают импорт и не ломают сборку.
+
+Если билд-скрипт сохраняет строку с хешем/автором/сообщением коммита в отдельный файл, передай его через параметр `-CommitLog` — парсер извлечёт полную информацию о коммите. Важно вызывать скрипт импорта **после** скриптов, которые создают этот файл:
+
+```bat
+:: Сначала выполнить сборку/коммит-скрипты, которые создадут git_pull_commit.log
+call C:\scripts\AddCommits.cmd
+
+:: Затем импортировать в GitLed
+powershell -NoProfile -ExecutionPolicy Bypass ^
+    -File "C:\path\to\gitled-import.ps1" ^
+    -PullLog "git_pull.log" ^
+    -CommitLog "git_pull_commit.log" ^
+    -ProjectId 1
+```
+
+Параметр `-CommitLog` необязателен.
 
 ### AI-провайдеры
 
@@ -341,16 +404,18 @@ Content-Type: application/json
 Разные AI-модели кардинально по-разному интерпретируют структуру промпта:
 
 **Claude** воспринимает заголовки Markdown как шаблон для заполнения.  
-**Grok / GPT** нередко воспринимают те же заголовки как список задач для пересказа.
+**Grok / GPT** нередко воспринимают те же заголовки как список задач для пересказа — и вместо анализа кода начинают пересказывать сами инструкции.
 
 Готовые шаблоны под каждый провайдер — в папке [`docs/prompts/`](docs/prompts/):
 
-| Файл | Провайдер |
-|---|---|
-| [`analysis-prompt-ru.md`](docs/prompts/analysis-prompt-ru.md) | Claude Code (CLI) |
-| [`analysis-prompt-xai-ru.md`](docs/prompts/analysis-prompt-xai-ru.md) | xAI Grok / OpenAI / Ollama |
+| Файл | Провайдер | Язык |
+|---|---|---|
+| [`analysis-prompt-ru.md`](docs/prompts/analysis-prompt-ru.md) | Claude Code (CLI) | Русский |
+| [`analysis-prompt-en.md`](docs/prompts/analysis-prompt-en.md) | Claude Code (CLI) | English |
+| [`analysis-prompt-xai-ru.md`](docs/prompts/analysis-prompt-xai-ru.md) | xAI Grok / OpenAI / Ollama | Русский |
+| [`analysis-prompt-xai-en.md`](docs/prompts/analysis-prompt-xai-en.md) | xAI Grok / OpenAI / Ollama | English |
 
-Вставь содержимое нужного шаблона в **Settings → Analysis prompt template**.
+При смене провайдера скопируй содержимое нужного шаблона в **Settings → Analysis prompt template**.
 
 ### Лицензия
 

@@ -122,7 +122,9 @@
     "chatError": "Error: {message}",
     "rawExpand": "Show all ({count} lines)",
     "rawCollapse": "Collapse",
-    "openOnGitHub": "Open commit on GitHub"
+    "openOnGitHub": "Open commit on GitHub",
+    "tabAnalysis": "Analysis",
+    "tabDiff": "Diff"
   },
   "settings": {
     "title": "Settings",

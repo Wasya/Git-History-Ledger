@@ -35,6 +35,7 @@ export const api = {
     return request(`/commits${qs}`);
   },
   createCommit: (data) => request('/commits', { method: 'POST', body: JSON.stringify(data) }),
+  getCommitDiff: (id) => request(`/commits/${id}/diff`),
   updateCommit: (id, data) => request(`/commits/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCommit: (id) => request(`/commits/${id}`, { method: 'DELETE' }),
   askCommit: (id, data) => request(`/commits/${id}/ask`, { method: 'POST', body: JSON.stringify(data) }),

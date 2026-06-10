@@ -250,6 +250,39 @@ app.post('/api/commits', (req, res) => {
   res.status(201).json(commits);
 });
 
+app.get('/api/commits/:id/diff', (req, res) => {
+  const commit = db.prepare(
+    'SELECT c.*, p.path as project_path FROM commits c JOIN projects p ON c.project_id = p.id WHERE c.id = ?'
+  ).get(req.params.id);
+  if (!commit) return res.status(404).json({ error: 'Commit not found' });
+
+  const rawHash = (commit.commit_hash || '').trim();
+  if (!rawHash) return res.status(400).json({ error: 'No commit hash' });
+
+  const opts = { cwd: commit.project_path, maxBuffer: 20 * 1024 * 1024, timeout: 30000 };
+
+  const normalize = buf => buf.toString('utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  try {
+    let buf;
+    if (rawHash.includes('..')) {
+      // Range from git pull session — diff between the two endpoints
+      const [from, to] = rawHash.split('..').map(h => h.trim());
+      buf = execFileSync('git', ['diff', from, to, '--no-color'], opts);
+    } else {
+      // Single commit — diff vs first parent; fall back to git show for initial commit
+      try {
+        buf = execFileSync('git', ['diff', rawHash + '^1', rawHash, '--no-color'], opts);
+      } catch {
+        buf = execFileSync('git', ['show', '--pretty=format:', '-p', '--no-color', rawHash], opts);
+      }
+    }
+    res.json({ diff: normalize(buf).trimStart() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.put('/api/commits/:id', (req, res) => {
   const { description, notes } = req.body;
   db.prepare(

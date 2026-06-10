@@ -122,7 +122,9 @@
     "chatError": "Ошибка: {message}",
     "rawExpand": "Показать все ({count} строк)",
     "rawCollapse": "Свернуть",
-    "openOnGitHub": "Открыть коммит на GitHub"
+    "openOnGitHub": "Открыть коммит на GitHub",
+    "tabAnalysis": "Анализ",
+    "tabDiff": "Diff"
   },
   "settings": {
     "title": "Настройки",

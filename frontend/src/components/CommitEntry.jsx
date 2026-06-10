@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -100,6 +100,141 @@ function DiffLine({ line }) {
       {line}
       {"\n"}
     </span>
+  );
+}
+
+// ── Diff viewer ──────────────────────────────────────────────────────────
+
+function parseRawDiff(raw) {
+  if (!raw) return { stat: [], sections: [] };
+  const lines = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const stat = [];
+  const sections = [];
+  let current = null;
+  for (const line of lines) {
+    if (line.startsWith('diff --git ')) {
+      if (current) sections.push(current);
+      const m = line.match(/diff --git a\/(.+) b\/(.+)/);
+      current = { filename: m ? m[2] : '(unknown)', lines: [], additions: 0, deletions: 0 };
+    } else if (line.startsWith('diff --cc ') || line.startsWith('diff --combined ')) {
+      // merge commit combined diff
+      if (current) sections.push(current);
+      const filename = line.replace(/^diff --(cc|combined) /, '').trim();
+      current = { filename: filename || '(unknown)', lines: [], additions: 0, deletions: 0 };
+    } else if (current) {
+      current.lines.push(line);
+      if (line.startsWith('+') && !line.startsWith('+++')) current.additions++;
+      if (line.startsWith('-') && !line.startsWith('---')) current.deletions++;
+    } else {
+      stat.push(line);
+    }
+  }
+  if (current) sections.push(current);
+  return { stat, sections };
+}
+
+function FilePath({ path }) {
+  const parts = path.split('/');
+  const base = parts.pop();
+  const dir = parts.length ? parts.join('/') + '/' : '';
+  return (
+    <span className="font-mono text-xs">
+      {dir && <span className="opacity-40">{dir}</span>}
+      <span className="font-semibold">{base}</span>
+    </span>
+  );
+}
+
+function DiffLineRow({ line, type, oldNum, newNum }) {
+  const numCls = "w-10 min-w-[2.5rem] text-right pr-2 select-none text-xs font-mono leading-5 text-gray-300 dark:text-gray-600 border-r border-gray-200 dark:border-gray-700";
+  const bg =
+    type === 'add'  ? 'bg-green-50 dark:bg-green-950/30' :
+    type === 'del'  ? 'bg-red-50 dark:bg-red-950/40' :
+    type === 'hunk' ? 'bg-cyan-50/60 dark:bg-cyan-950/20' : '';
+  const textCls =
+    type === 'add'  ? 'text-green-700 dark:text-green-400' :
+    type === 'del'  ? 'text-red-600 dark:text-red-400' :
+    type === 'hunk' ? 'text-cyan-600 dark:text-cyan-400' :
+    type === 'meta' ? 'text-gray-500 dark:text-gray-400' :
+    'text-gray-700 dark:text-gray-300';
+  return (
+    <div className={`flex min-w-0 ${bg}`}>
+      <span className={numCls}>{oldNum ?? ''}</span>
+      <span className={`${numCls}`}>{newNum ?? ''}</span>
+      <span className={`flex-1 font-mono text-xs whitespace-pre px-2 ${textCls}`}>{line || ' '}</span>
+    </div>
+  );
+}
+
+function FileDiffSection({ section, defaultOpen = false }) {
+  const [collapsed, setCollapsed] = useState(!defaultOpen);
+  const processedLines = useMemo(() => {
+    let oldLine = 0, newLine = 0;
+    return section.lines.map((line) => {
+      // regular @@ or combined @@@
+      if (line.match(/^@@+/)) {
+        const hm = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+        if (hm) { oldLine = parseInt(hm[1], 10); newLine = parseInt(hm[2], 10); }
+        return { line, type: 'hunk', oldNum: null, newNum: null };
+      }
+      if (line.startsWith('+') && !line.startsWith('+++')) return { line, type: 'add', oldNum: null, newNum: newLine++ };
+      if (line.startsWith('-') && !line.startsWith('---')) return { line, type: 'del', oldNum: oldLine++, newNum: null };
+      if (/^(---|\+\+\+|index |new file|deleted file|old mode|new mode|rename|Binary)/.test(line)) return { line, type: 'meta', oldNum: null, newNum: null };
+      return { line, type: 'ctx', oldNum: oldLine++, newNum: newLine++ };
+    });
+  }, [section.lines]);
+  return (
+    <div className="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
+      <div
+        className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 cursor-pointer select-none hover:bg-gray-200 dark:hover:bg-gray-750"
+        onClick={() => setCollapsed(v => !v)}
+      >
+        {collapsed
+          ? <ChevronRight size={11} className="text-gray-400 flex-shrink-0" />
+          : <ChevronDown size={11} className="text-gray-400 flex-shrink-0" />}
+        <FilePath path={section.filename} />
+        <div className="ml-auto flex items-center gap-2 text-xs font-mono">
+          {section.additions > 0 && (
+            <span className="text-green-600 dark:text-green-400 font-semibold">+{section.additions}</span>
+          )}
+          {section.deletions > 0 && (
+            <span className="text-red-500 dark:text-red-400 font-semibold">-{section.deletions}</span>
+          )}
+        </div>
+      </div>
+      {!collapsed && (
+        <div className="bg-white dark:bg-gray-950">
+          {processedLines.map((item, i) => <DiffLineRow key={i} {...item} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DiffViewer({ diffData, raw }) {
+  const { stat, sections } = diffData;
+
+  if (!sections.length) {
+    const flatLines = (raw || '').split('\n').filter(l => l.trim());
+    if (!flatLines.length) return null;
+    return (
+      <div className="max-h-[70vh] overflow-auto rounded-md border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-950 p-3 text-xs font-mono leading-relaxed text-gray-800 dark:text-gray-200">
+        {flatLines.map((line, i) => <DiffLine key={i} line={line} />)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-h-[70vh] overflow-auto rounded-md border border-gray-200 dark:border-gray-700">
+      {stat.some(l => l.trim()) && (
+        <div className="bg-gray-100 dark:bg-gray-950 px-3 py-2 text-xs font-mono leading-relaxed border-b border-gray-200 dark:border-gray-700">
+          {stat.map((line, i) => <DiffLine key={i} line={line} />)}
+        </div>
+      )}
+      <div className="divide-y divide-gray-200 dark:divide-gray-700">
+        {sections.map((section, i) => <FileDiffSection key={i} section={section} defaultOpen={i === 0} />)}
+      </div>
+    </div>
   );
 }
 
@@ -241,6 +376,11 @@ export default function CommitEntry({ commit, onUpdate, onDelete, remoteUrl }) {
   const [description, setDescription] = useState(commit.description || "");
   const [notes, setNotes] = useState(commit.notes || "");
   const [rawExpanded, setRawExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState('analysis');
+  const [fullDiff, setFullDiff] = useState(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState(null);
+  const diffData = useMemo(() => parseRawDiff(fullDiff !== null ? fullDiff : (commit.raw_output || '')), [fullDiff, commit.raw_output]);
   const editRef = useRef(null);
 
   const rawLineCount = (commit.raw_output || '').split('\n').filter(l => l.trim()).length;
@@ -414,6 +554,41 @@ export default function CommitEntry({ commit, onUpdate, onDelete, remoteUrl }) {
       {/* Expanded content */}
       {expanded && (
         <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+          {/* Tab bar */}
+          {commit.commit_hash && !editing && (
+            <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4">
+              {(['analysis', 'diff']).map(tab => (
+                <button
+                  key={tab}
+                  onClick={async () => {
+                    setActiveTab(tab);
+                    if (tab === 'diff' && fullDiff === null && !diffLoading) {
+                      setDiffLoading(true);
+                      setDiffError(null);
+                      try {
+                        const res = await api.getCommitDiff(commit.id);
+                        setFullDiff(res.diff || '');
+                      } catch (e) {
+                        setDiffError(e.message);
+                      } finally {
+                        setDiffLoading(false);
+                      }
+                    }
+                  }}
+                  className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
+                    activeTab === tab
+                      ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                >
+                  {tab === 'analysis' ? t('commitEntry.tabAnalysis') : t('commitEntry.tabDiff')}
+                  {tab === 'diff' && diffData.sections.length > 0 && (
+                    <span className="ml-1 opacity-50">({diffData.sections.length})</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="p-4 space-y-4">
             {editing ? (
               <div ref={editRef} className="space-y-4">
@@ -452,35 +627,54 @@ export default function CommitEntry({ commit, onUpdate, onDelete, remoteUrl }) {
               </div>
             ) : (
               <>
-                {commit.description && (
-                  <div className="prose prose-sm dark:prose-invert max-w-none prose-pre:p-0">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={makeMarkdownComponents({
-                        collapseCode: shouldCollapse && !rawExpanded,
-                        onExpand: () => setRawExpanded(true),
-                        onCollapse: () => setRawExpanded(false),
-                        t,
-                      })}
-                    >
-                      {commit.description}
-                    </ReactMarkdown>
-                  </div>
+                {/* Analysis tab (or always if no raw_output) */}
+                {(!commit.raw_output || activeTab === 'analysis') && (
+                  <>
+                    {commit.description && (
+                      <div className="prose prose-sm dark:prose-invert max-w-none prose-pre:p-0">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={makeMarkdownComponents({
+                            collapseCode: shouldCollapse && !rawExpanded,
+                            onExpand: () => setRawExpanded(true),
+                            onCollapse: () => setRawExpanded(false),
+                            t,
+                          })}
+                        >
+                          {commit.description}
+                        </ReactMarkdown>
+                      </div>
+                    )}
+                    {commit.notes && (
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md p-3">
+                        <p className="text-xs font-medium text-yellow-700 dark:text-yellow-400 mb-2">
+                          {t('commitEntry.notesTitle')}
+                        </p>
+                        <div className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={markdownComponents}
+                          >
+                            {commit.notes}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
-                {commit.notes && (
-                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md p-3">
-                    <p className="text-xs font-medium text-yellow-700 dark:text-yellow-400 mb-2">
-                      {t('commitEntry.notesTitle')}
-                    </p>
-                    <div className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={markdownComponents}
-                      >
-                        {commit.notes}
-                      </ReactMarkdown>
+                {/* Diff tab */}
+                {activeTab === 'diff' && (
+                  diffLoading ? (
+                    <div className="flex items-center gap-2 text-xs text-gray-400 py-4">
+                      <Loader size={14} className="animate-spin" /> Loading diff...
                     </div>
-                  </div>
+                  ) : diffError ? (
+                    <div className="text-xs text-red-500 py-2">{diffError}</div>
+                  ) : fullDiff !== null && !fullDiff && !commit.raw_output ? (
+                    <div className="text-xs text-gray-400 py-2">No diff available</div>
+                  ) : (
+                    <DiffViewer diffData={diffData} raw={fullDiff !== null ? fullDiff : (commit.raw_output || '')} />
+                  )
                 )}
                 <div className="flex gap-2">
                   <button

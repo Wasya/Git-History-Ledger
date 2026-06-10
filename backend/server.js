@@ -15,6 +15,27 @@ app.use(express.json({ limit: '10mb' }));
 
 // ── Projects ──────────────────────────────────────────────────────────────
 
+function normalizeRemoteUrl(url) {
+  if (!url) return '';
+  url = url.trim();
+  // git@github.com:user/repo.git → https://github.com/user/repo
+  url = url.replace(/^git@([^:]+):(.+)$/, 'https://$1/$2');
+  // Remove .git suffix and trailing slash
+  url = url.replace(/\.git$/, '').replace(/\/$/, '');
+  return url;
+}
+
+function detectRemoteUrl(repoPath) {
+  if (!repoPath || !fs.existsSync(repoPath)) return '';
+  try {
+    const raw = execFileSync('git', ['remote', 'get-url', 'origin'],
+      { cwd: repoPath, encoding: 'utf8', timeout: 5000 });
+    return normalizeRemoteUrl(raw.trim());
+  } catch (_) {
+    return '';
+  }
+}
+
 app.get('/api/projects', (req, res) => {
   const projects = db.prepare(
     'SELECT * FROM projects ORDER BY created_at DESC'
@@ -22,13 +43,58 @@ app.get('/api/projects', (req, res) => {
   res.json(projects);
 });
 
+// Detect remote URL from a local path (called before project is created)
+app.post('/api/projects/detect-remote', (req, res) => {
+  const { path: repoPath } = req.body;
+  if (!repoPath) return res.status(400).json({ error: 'path required' });
+  res.json({ remote_url: detectRemoteUrl(repoPath) });
+});
+
+// Check whether a path exists and is a git repository
+app.post('/api/projects/check-path', (req, res) => {
+  const { path: repoPath } = req.body;
+  if (!repoPath) return res.status(400).json({ error: 'path required' });
+
+  const exists = fs.existsSync(repoPath);
+  if (!exists) return res.json({ exists: false, is_git: false });
+
+  let is_git = false;
+  try {
+    execFileSync('git', ['rev-parse', '--git-dir'],
+      { cwd: repoPath, encoding: 'utf8', timeout: 3000 });
+    is_git = true;
+  } catch (_) {}
+
+  res.json({ exists: true, is_git });
+});
+
+// Clone a remote repository into a local path
+app.post('/api/projects/clone', (req, res) => {
+  const { remote_url, path: targetPath } = req.body;
+  if (!remote_url || !targetPath) {
+    return res.status(400).json({ error: 'remote_url and path are required' });
+  }
+  try {
+    execFileSync('git', ['clone', remote_url, targetPath],
+      { encoding: 'utf8', timeout: 120000 });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.stderr || err.stdout || err.message });
+  }
+});
+
 app.post('/api/projects', (req, res) => {
-  const { name, path } = req.body;
+  const { name, path, remote_url } = req.body;
   if (!name || !path) return res.status(400).json({ error: 'name and path are required' });
 
+  // Auto-detect remote URL if not provided
+  const remoteUrl = remote_url !== undefined
+    ? normalizeRemoteUrl(remote_url)
+    : detectRemoteUrl(path.trim());
+
   const result = db.prepare(
-    'INSERT INTO projects (name, path) VALUES (?, ?)'
-  ).run(name.trim(), path.trim());
+    'INSERT INTO projects (name, path, remote_url) VALUES (?, ?, ?)'
+  ).run(name.trim(), path.trim(), remoteUrl);
 
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(project);
@@ -259,6 +325,59 @@ app.get('/api/projects/:id/log-preview', (req, res) => {
     .filter(Boolean);
 
   res.json(commits);
+});
+
+// ── Gap detection ─────────────────────────────────────────────────────────
+
+app.get('/api/projects/:id/gaps', (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+  if (!project.path) return res.status(400).json({ error: 'Project path is not set' });
+  if (!fs.existsSync(project.path)) return res.status(400).json({ error: `Directory does not exist: ${project.path}` });
+
+  // Last known commit date for this project; fall back to 90 days ago
+  const lastRow = db.prepare(
+    'SELECT commit_date FROM commits WHERE project_id = ? AND commit_date IS NOT NULL ORDER BY commit_date DESC, created_at DESC LIMIT 1'
+  ).get(req.params.id);
+
+  let afterDate;
+  if (lastRow?.commit_date) {
+    // Go 1 day back to catch same-day commits that may have been missed
+    const d = new Date(lastRow.commit_date);
+    d.setDate(d.getDate() - 1);
+    afterDate = d.toISOString().slice(0, 10);
+  } else {
+    const d = new Date();
+    d.setDate(d.getDate() - 90);
+    afterDate = d.toISOString().slice(0, 10);
+  }
+
+  const args = ['log', '--reverse', '--format=%H %ad %an : %s', '--date=short', `--after=${afterDate}`];
+
+  let output;
+  try {
+    output = execFileSync('git', args, { cwd: project.path, encoding: 'utf8', timeout: 15000 });
+  } catch (err) {
+    return res.status(400).json({ error: err.stderr || err.message });
+  }
+
+  const LOG_RE = /^([a-f0-9]{7,40})\s+(\d{4}-\d{2}-\d{2})\s+(.+?)\s*:\s*(.+)/;
+  const missing = output
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((line) => {
+      const m = line.match(LOG_RE);
+      if (!m) return null;
+      const [, hash, date, author, message] = m;
+      const short = hash.slice(0, 8);
+      const exists = db.prepare(
+        'SELECT id FROM commits WHERE project_id = ? AND commit_hash LIKE ?'
+      ).get(project.id, `%${short}%`);
+      return exists ? null : { hash, date, author, message };
+    })
+    .filter(Boolean);
+
+  res.json(missing);
 });
 
 // ── Import git log ────────────────────────────────────────────────────────

@@ -6,7 +6,10 @@
     "noProjects": "Проектов нет",
     "pullNoAI": "Git Pull (без AI)",
     "pullWithAI": "Git Pull + AI анализ",
-    "deleteProject": "Удалить проект"
+    "deleteProject": "Удалить проект",
+    "refreshGaps": "Проверить пропущенные коммиты",
+    "catchUp": "Догнать: {count} пропущенных",
+    "gapBadgeTitle": "{count} коммитов не в журнале — нажмите, чтобы импортировать"
   },
   "topbar": {
     "search": "Поиск по хэшу, ветке, описанию...",
@@ -25,6 +28,23 @@
     "pathPlaceholder": "C:\\projects\\my-repo",
     "pathHelper": "Локальный путь к уже склонированному репозиторию",
     "pathUrlWarning": "Похоже на URL. Сначала склонируйте репозиторий локально:",
+    "remoteUrlLabel": "Remote URL (GitHub / GitLab / ...)",
+    "remoteUrlPlaceholder": "https://github.com/user/repo",
+    "remoteUrlHelper": "Необязательно — для ссылок на коммиты из журнала",
+    "remoteUrlDetecting": "Определяю...",
+    "remoteUrlDetected": "Определено автоматически",
+    "remoteUrlNotFound": "Remote не найден",
+    "pathChecking": "Проверяю...",
+    "pathOk": "Git-репозиторий найден",
+    "pathNoDir": "Папка не найдена",
+    "pathNoGit": "Папка существует, но не является git-репозиторием",
+    "pathNoDirNoRemote": "Папка не найдена. Укажите Remote URL чтобы склонировать.",
+    "pathClonePrompt": "Папка не найдена. Склонировать репозиторий сюда?",
+    "pathNoGitClonePrompt": "Не является git-репозиторием. Склонировать сюда?",
+    "cloneBtn": "Клонировать",
+    "cloning": "Клонирую...",
+    "cloneDone": "Склонировано успешно",
+    "cloneError": "Ошибка клонирования: {message}",
     "errorRequired": "Оба поля обязательны",
     "cancel": "Отмена",
     "submit": "Добавить проект"
@@ -46,6 +66,9 @@
   },
   "importLog": {
     "title": "Импорт истории git",
+    "catchUpTitle": "Догнать: {count} пропущенных коммита",
+    "catchUpHint": "Эти коммиты есть в репозитории, но отсутствуют в журнале.",
+    "catchUpBtn": "Импортировать все ({count})",
     "tabAuto": "Авто (из пути проекта)",
     "tabPaste": "Вставить вывод",
     "projectLabel": "Проект",
@@ -68,7 +91,9 @@
     "errorNoDates": "Нажмите «Предпросмотр» для загрузки коммитов",
     "pathInfo": "Бэкенд запустит git log в: {path}",
     "pathMissing": "Путь проекта не указан — авто-режим недоступен.",
-    "noNewCommits": "Все найденные коммиты уже импортированы"
+    "noNewCommits": "Все найденные коммиты уже импортированы",
+    "selectAll": "Выбрать все",
+    "deselectAll": "Снять все"
   },
   "commitTree": {
     "empty": "Нет записей. Импортируйте вывод git pull для начала работы."
@@ -94,7 +119,10 @@
     "doneEditingPresets": "Готово",
     "editPresetsTooltip": "Редактировать пресеты",
     "newPreset": "Новый пресет",
-    "chatError": "Ошибка: {message}"
+    "chatError": "Ошибка: {message}",
+    "rawExpand": "Показать все ({count} строк)",
+    "rawCollapse": "Свернуть",
+    "openOnGitHub": "Открыть коммит на GitHub"
   },
   "settings": {
     "title": "Настройки",
@@ -144,6 +172,10 @@
     "gitPullError": "Git Pull ошибка: {message}",
     "aiError": "AI анализ не выполнен: {message}",
     "analyzingProgress": "Анализирую {n} из {total}...",
-    "analyzeError": "Ошибка AI-анализа: {message}"
+    "analyzeError": "Ошибка AI-анализа: {message}",
+    "refreshingGaps": "Проверяю пробелы...",
+    "noGaps": "Всё актуально — пропущенных коммитов не найдено",
+    "gapsFound": "Найдено {count} пропущенных коммитов",
+    "catchUpDone": "Импортировано {count} пропущенных коммитов"
   }
 }

@@ -89,6 +89,12 @@ export default function App() {
   const [showAddProject, setShowAddProject] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Gap detection
+  const [gapData, setGapData] = useState({});       // { [projectId]: commit[] }
+  const [gapCounts, setGapCounts] = useState({});   // { [projectId]: number }
+  const [refreshingGaps, setRefreshingGaps] = useState(false);
+  const [catchUpCommits, setCatchUpCommits] = useState(null); // commits[] for catch-up mode
+
   // Pull state
   const [pullingId, setPullingId] = useState(null);
 
@@ -216,6 +222,43 @@ export default function App() {
     );
   };
 
+  const handleRefreshGaps = useCallback(async () => {
+    const withPath = projects.filter((p) => p.path);
+    if (!withPath.length) return;
+    setRefreshingGaps(true);
+    addToast(t('app.refreshingGaps'), 'info', 2000);
+    const counts = {};
+    const data = {};
+    await Promise.all(
+      withPath.map(async (p) => {
+        try {
+          const missing = await api.getGaps(p.id);
+          if (missing.length > 0) {
+            counts[p.id] = missing.length;
+            data[p.id] = missing;
+          }
+        } catch (_) {}
+      })
+    );
+    setGapCounts(counts);
+    setGapData(data);
+    setRefreshingGaps(false);
+    const total = Object.values(counts).reduce((s, n) => s + n, 0);
+    if (total === 0) {
+      addToast(t('app.noGaps'), 'success');
+    } else {
+      addToast(t('app.gapsFound', { count: total }), 'info');
+    }
+  }, [projects, addToast, t]);
+
+  const handleCatchUp = useCallback((projectId) => {
+    const commits = gapData[projectId];
+    if (!commits?.length) return;
+    setSelectedProjectId(projectId);
+    setCatchUpCommits(commits);
+    setShowImportLog(true);
+  }, [gapData]);
+
   const handleImport = async (data) => {
     const { analyzeAfterImport, ...commitData } = data;
     const result = await api.createCommit(commitData);
@@ -240,13 +283,18 @@ export default function App() {
     }
   };
 
-  const handleImportLog = (newCommits) => {
+  const handleImportLog = (newCommits, fromProjectId) => {
     if (!newCommits?.length) return;
     const filtered = debouncedSearch
       ? newCommits.filter((c) => matchesSearch(c, debouncedSearch))
       : newCommits;
     if (filtered.length > 0) {
       setCommits((prev) => [...filtered, ...prev]);
+    }
+    // Clear gaps for this project
+    if (fromProjectId) {
+      setGapCounts((prev) => { const next = { ...prev }; delete next[fromProjectId]; return next; });
+      setGapData((prev) => { const next = { ...prev }; delete next[fromProjectId]; return next; });
     }
     const n = newCommits.length;
     addToast(
@@ -281,6 +329,10 @@ export default function App() {
         onPull={handleGitPull}
         onPullOnly={handleGitPullOnly}
         pullingId={pullingId}
+        gapCounts={gapCounts}
+        onRefreshGaps={handleRefreshGaps}
+        refreshingGaps={refreshingGaps}
+        onCatchUp={handleCatchUp}
       />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -335,6 +387,7 @@ export default function App() {
                 commits={commits}
                 onUpdate={handleUpdateCommit}
                 onDelete={handleDeleteCommit}
+                remoteUrl={selectedProject?.remote_url || ''}
               />
             </>
           )}
@@ -361,8 +414,9 @@ export default function App() {
         <ImportLogModal
           projects={projects}
           selectedProjectId={selectedProjectId}
-          onClose={() => setShowImportLog(false)}
+          onClose={() => { setShowImportLog(false); setCatchUpCommits(null); }}
           onImportLog={handleImportLog}
+          catchUpCommits={catchUpCommits}
         />
       )}
 

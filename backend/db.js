@@ -7,6 +7,9 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// Migration: add remote_url column to existing databases
+try { db.exec(`ALTER TABLE projects ADD COLUMN remote_url TEXT DEFAULT ''`); } catch (_) {}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

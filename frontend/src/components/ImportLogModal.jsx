@@ -14,17 +14,21 @@ function monthAgo() {
   return d.toISOString().slice(0, 10);
 }
 
-export default function ImportLogModal({ projects, selectedProjectId, onClose, onImportLog }) {
+export default function ImportLogModal({ projects, selectedProjectId, onClose, onImportLog, catchUpCommits }) {
   const { t } = useI18n();
+
+  const isCatchUp = !!catchUpCommits;
 
   const [projectId, setProjectId] = useState(selectedProjectId || (projects[0]?.id ?? ''));
   const [mode, setMode] = useState('auto');
   const [fromDate, setFromDate] = useState(monthAgo());
   const [toDate, setToDate] = useState(today());
-  const [previewData, setPreviewData] = useState(null);
+  const [previewData, setPreviewData] = useState(isCatchUp ? catchUpCommits : null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
-  const [selectedHashes, setSelectedHashes] = useState(new Set());
+  const [selectedHashes, setSelectedHashes] = useState(
+    isCatchUp ? new Set(catchUpCommits.map((c) => c.hash)) : new Set()
+  );
   const [rawText, setRawText] = useState('');
   const [analyzeAfterImport, setAnalyzeAfterImport] = useState(false);
   const [error, setError] = useState('');
@@ -39,12 +43,13 @@ export default function ImportLogModal({ projects, selectedProjectId, onClose, o
     return () => window.removeEventListener('keydown', handleKey);
   }, [onClose]);
 
-  // Reset preview when project or dates change
+  // Reset preview when project or dates change (not in catch-up mode — data is pre-loaded)
   useEffect(() => {
+    if (isCatchUp) return;
     setPreviewData(null);
     setPreviewError('');
     setSelectedHashes(new Set());
-  }, [projectId, fromDate, toDate]);
+  }, [isCatchUp, projectId, fromDate, toDate]);
 
   const handlePreview = async () => {
     if (!projectId) { setPreviewError(t('importLog.errorNoProject')); return; }
@@ -98,7 +103,7 @@ export default function ImportLogModal({ projects, selectedProjectId, onClose, o
         setStatus(t('importLog.importing'));
         const newCommits = await api.importLog({ project_id: Number(projectId), hashes: [...selectedHashes] });
         await runAnalyze(newCommits);
-        onImportLog(newCommits);
+        onImportLog(newCommits, Number(projectId));
         onClose();
       } catch (err) {
         setError(err.message);
@@ -110,7 +115,7 @@ export default function ImportLogModal({ projects, selectedProjectId, onClose, o
         setStatus(t('importLog.importing'));
         const newCommits = await api.importLog({ project_id: Number(projectId), raw_text: rawText.trim() });
         await runAnalyze(newCommits);
-        onImportLog(newCommits);
+        onImportLog(newCommits, Number(projectId));
         onClose();
       } catch (err) {
         setError(err.message);
@@ -141,8 +146,10 @@ export default function ImportLogModal({ projects, selectedProjectId, onClose, o
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <h2 className="text-base font-semibold flex items-center gap-2">
-            <GitCommit size={16} className="text-indigo-500" />
-            {t('importLog.title')}
+            <GitCommit size={16} className={isCatchUp ? 'text-amber-500' : 'text-indigo-500'} />
+            {isCatchUp
+              ? t('importLog.catchUpTitle', { count: catchUpCommits.length })
+              : t('importLog.title')}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
             <X size={18} />
@@ -153,13 +160,14 @@ export default function ImportLogModal({ projects, selectedProjectId, onClose, o
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {error && <p className="text-red-500 text-sm">{error}</p>}
 
-          {/* Project selector */}
+          {/* Project selector — read-only in catch-up mode */}
           <div>
             <label className="block text-sm font-medium mb-1">{t('importLog.projectLabel')}</label>
             <select
               className="input"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
+              disabled={isCatchUp}
             >
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
@@ -167,25 +175,34 @@ export default function ImportLogModal({ projects, selectedProjectId, onClose, o
             </select>
           </div>
 
-          {/* Mode tabs */}
-          <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-900 rounded-lg">
-            {['auto', 'paste'].map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${
-                  mode === m
-                    ? 'bg-white dark:bg-gray-700 shadow-sm font-medium'
-                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                {m === 'auto' ? t('importLog.tabAuto') : t('importLog.tabPaste')}
-              </button>
-            ))}
-          </div>
+          {/* Catch-up hint */}
+          {isCatchUp && (
+            <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-2">
+              {t('importLog.catchUpHint')}
+            </p>
+          )}
+
+          {/* Mode tabs — hidden in catch-up mode */}
+          {!isCatchUp && (
+            <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-900 rounded-lg">
+              {['auto', 'paste'].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${
+                    mode === m
+                      ? 'bg-white dark:bg-gray-700 shadow-sm font-medium'
+                      : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                  }`}
+                >
+                  {m === 'auto' ? t('importLog.tabAuto') : t('importLog.tabPaste')}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* AUTO MODE */}
-          {mode === 'auto' && (
+          {!isCatchUp && mode === 'auto' && (
             <div className="space-y-3">
               {hasPath ? (
                 <p className="text-xs text-gray-400 font-mono truncate">
@@ -232,8 +249,8 @@ export default function ImportLogModal({ projects, selectedProjectId, onClose, o
                         {previewData.some((c) => !c.already_exists) && (
                           <button onClick={toggleAll} className="text-xs text-indigo-500 hover:underline">
                             {previewData.filter((c) => !c.already_exists).every((c) => selectedHashes.has(c.hash))
-                              ? 'Снять все / Deselect all'
-                              : 'Выбрать все / Select all'}
+                              ? t('importLog.deselectAll')
+                              : t('importLog.selectAll')}
                           </button>
                         )}
                       </div>
@@ -276,7 +293,7 @@ export default function ImportLogModal({ projects, selectedProjectId, onClose, o
           )}
 
           {/* PASTE MODE */}
-          {mode === 'paste' && (
+          {!isCatchUp && mode === 'paste' && (
             <div className="space-y-2">
               <p className="text-sm text-gray-500">{t('importLog.pasteHint')}</p>
               <pre className="bg-gray-100 dark:bg-gray-900 text-xs font-mono p-3 rounded-lg overflow-x-auto select-all">
@@ -290,6 +307,45 @@ export default function ImportLogModal({ projects, selectedProjectId, onClose, o
                 onChange={(e) => setRawText(e.target.value)}
                 autoFocus
               />
+            </div>
+          )}
+
+          {/* CATCH-UP commit list */}
+          {isCatchUp && previewData && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-400">
+                  {t('importLog.previewFound', { total: previewData.length, skipped: 0 })}
+                </p>
+                <button onClick={toggleAll} className="text-xs text-indigo-500 hover:underline">
+                  {previewData.every((c) => selectedHashes.has(c.hash))
+                    ? t('importLog.deselectAll')
+                    : t('importLog.selectAll')}
+                </button>
+              </div>
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-y-auto max-h-64">
+                {previewData.map((c) => (
+                  <label
+                    key={c.hash}
+                    className="flex items-start gap-2.5 px-3 py-2 border-b last:border-0 border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750"
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 flex-shrink-0 rounded border-gray-300 text-indigo-600"
+                      checked={selectedHashes.has(c.hash)}
+                      onChange={() => toggleHash(c.hash)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <code className="text-xs text-indigo-500 font-mono">{c.hash.slice(0, 7)}</code>
+                        <span className="text-xs text-gray-400">{c.date}</span>
+                        <span className="text-xs text-gray-500">{c.author}</span>
+                      </div>
+                      <p className="text-xs text-gray-700 dark:text-gray-300 truncate mt-0.5">{c.message}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
             </div>
           )}
 
@@ -313,10 +369,12 @@ export default function ImportLogModal({ projects, selectedProjectId, onClose, o
             <button
               onClick={handleImport}
               disabled={!!status}
-              className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+              className={`disabled:opacity-40 disabled:cursor-not-allowed ${isCatchUp ? 'btn-primary bg-amber-500 hover:bg-amber-600 border-amber-500' : 'btn-primary'}`}
             >
               <GitCommit size={14} />
-              {status || t('importLog.importBtn', { count: importCount })}
+              {status || (isCatchUp
+                ? t('importLog.catchUpBtn', { count: selectedHashes.size })
+                : t('importLog.importBtn', { count: importCount }))}
             </button>
           </div>
         </div>

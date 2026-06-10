@@ -50,7 +50,7 @@ function countLeaves(obj) {
   return Object.values(obj).reduce((s, v) => s + countLeaves(v), 0);
 }
 
-export default function CommitTree({ commits, onUpdate, onDelete }) {
+export default function CommitTree({ commits, onUpdate, onDelete, remoteUrl }) {
   const { t } = useI18n();
 
   if (!commits || commits.length === 0) {
@@ -84,6 +84,7 @@ export default function CommitTree({ commits, onUpdate, onDelete }) {
                           commit={commit}
                           onUpdate={onUpdate}
                           onDelete={onDelete}
+                          remoteUrl={remoteUrl}
                         />
                       ))}
                     </Section>

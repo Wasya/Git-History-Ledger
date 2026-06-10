@@ -18,6 +18,9 @@ export const api = {
   getProjects: () => request('/projects'),
   createProject: (data) => request('/projects', { method: 'POST', body: JSON.stringify(data) }),
   deleteProject: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
+  detectRemoteUrl: (path) => request('/projects/detect-remote', { method: 'POST', body: JSON.stringify({ path }) }),
+  checkPath: (path) => request('/projects/check-path', { method: 'POST', body: JSON.stringify({ path }) }),
+  cloneRepo: (remote_url, path) => request('/projects/clone', { method: 'POST', body: JSON.stringify({ remote_url, path }) }),
 
   // Git Pull
   gitPull: (projectId) => request(`/projects/${projectId}/pull`, { method: 'POST' }),
@@ -36,6 +39,7 @@ export const api = {
   deleteCommit: (id) => request(`/commits/${id}`, { method: 'DELETE' }),
   askCommit: (id, data) => request(`/commits/${id}/ask`, { method: 'POST', body: JSON.stringify(data) }),
   analyzeCommit: (id) => request(`/commits/${id}/analyze`, { method: 'POST' }),
+  getGaps: (projectId) => request(`/projects/${projectId}/gaps`),
   logPreview: (projectId, from, to) => {
     const p = new URLSearchParams();
     if (from) p.set('from', from);

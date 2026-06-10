@@ -16,12 +16,16 @@ Paste or auto-pull from your repositories — get a structured, browsable histor
 - **Import git pull output** — paste manually or trigger `git pull` directly from the UI
 - **Import git log history** — select commits by date range with a preview list and per-commit AI analysis
 - **Auto-analyze after import** — optional AI summary generated immediately on import
+- **Gap detection** — scan for commits that exist in the repo but are missing from the journal; one-click catch-up import
 - **Tree view** — commits grouped by Year → Month → Week → Day
 - **AI analysis** — automatic summaries via xAI, OpenAI, Anthropic, Claude Code CLI, or Ollama (local)
 - **Chat with commits** — ask follow-up questions about any change
 - **Markdown editor** — rich description and notes fields with live preview
-- **Diff syntax highlighting** — colored `+`/`-` lines, file stats, commit ranges
+- **Diff syntax highlighting** — colored `+`/`-` lines, file stats, commit ranges; long bodies auto-collapsed with expand toggle
+- **Open on GitHub/GitLab** — link icon next to each commit hash; remote URL auto-detected on project creation
 - **Full-text search** — across hash, branch, description, and notes
+- **Path validation & git clone** — detects missing or non-git directories when adding a project and offers to clone right from the UI
+- **MCP server** — connect to Claude Code, Claude Desktop, Cursor, Windsurf, Cline, or any MCP-compatible client
 - **Multilingual UI** — built-in Russian and English; load any custom `.json` language file
 - **Dark / light theme** — persisted across sessions
 - **Customizable code font** — system, Cascadia Code, JetBrains Mono, Fira Code, and more
@@ -301,6 +305,68 @@ GET    /api/settings/ollama-models
 
 ---
 
+## MCP Server
+
+`mcp-server.js` exposes Git History Ledger as an [MCP](https://modelcontextprotocol.io) server. Any MCP-compatible AI client (Claude Code, Claude Desktop, Cursor, Windsurf, Cline, Continue.dev, Zed, etc.) can query and update your commit journal directly during a conversation — without opening the web UI.
+
+### Available tools
+
+| Tool | Description |
+|---|---|
+| `gitled_projects` | List all registered repositories (id, name, path) |
+| `gitled_commits` | Search commit history — filter by project, text, date range |
+| `gitled_commit` | Get full details of a single commit (description, diff, notes) |
+| `gitled_update_notes` | Append or replace the notes field of a commit |
+| `gitled_pull` | Trigger git pull on a project and import new commits |
+| `gitled_gaps` | Find commits in the repo that are not yet in the journal |
+
+The server reads SQLite directly (no backend required for reads). `gitled_pull` and `gitled_gaps` proxy through the REST backend — start `npm run dev` first for those tools to work.
+
+### Connect to Claude Code
+
+Add to your project settings (`.claude/settings.json`) or globally (`~/.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "gitled": {
+      "command": "node",
+      "args": ["C:\\OTbase\\GitLed\\mcp-server.js"]
+    }
+  }
+}
+```
+
+### Connect to Claude Desktop
+
+Add to `claude_desktop_config.json` (Windows: `%APPDATA%\Claude\claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "gitled": {
+      "command": "node",
+      "args": ["C:\\OTbase\\GitLed\\mcp-server.js"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop after saving. The `gitled_*` tools will appear in the tools list automatically.
+
+### Connect to Cursor / Windsurf / Cline
+
+The MCP config key is the same (`mcpServers`) — only the config file location differs:
+
+| Client | Config file |
+|---|---|
+| Cursor | `.cursor/mcp.json` in project root, or `~/.cursor/mcp.json` globally |
+| Windsurf | `.windsurf/mcp.json` in project root, or `~/.windsurf/mcp.json` globally |
+| Cline (VS Code) | VS Code settings → Cline → MCP Servers |
+| Continue.dev | `.continue/config.json` → `mcpServers` block |
+
+---
+
 ## License
 
 [MIT](LICENSE) © 2026 Andrey Koshevarov
@@ -332,12 +398,16 @@ npm run dev
 - Импорт вывода `git pull` — вручную или прямо из интерфейса
 - Импорт истории коммитов из `git log` — выбор по диапазону дат с предпросмотром и AI-анализом каждого коммита
 - Автоматический AI-анализ сразу после импорта
+- **Поиск пропусков** — сканирует репозиторий на коммиты, которых нет в журнале; импорт в один клик
 - Дерево коммитов: Год → Месяц → Неделя → День
 - AI-анализ изменений (xAI, OpenAI, Anthropic, Claude Code CLI, Ollama)
 - Чат с коммитом — задавай уточняющие вопросы об изменениях
 - Markdown-редактор описаний и заметок
-- Подсветка синтаксиса diff
+- Подсветка синтаксиса diff; длинные тела коммитов сворачиваются с кнопкой раскрытия
+- **Открыть на GitHub/GitLab** — иконка-ссылка у каждого хэша; remote URL определяется автоматически
 - Полнотекстовый поиск
+- **Валидация пути и git clone** — при добавлении проекта определяет отсутствующую или не-git папку и предлагает склонировать прямо из интерфейса
+- **MCP-сервер** — подключается к Claude Code, Claude Desktop, Cursor, Windsurf, Cline и любому MCP-клиенту
 - Мультиязычный интерфейс — RU/EN встроены, поддержка кастомных JSON-файлов локализации
 - Тёмная и светлая тема
 - Настройка шрифта кода
@@ -416,6 +486,66 @@ powershell -NoProfile -ExecutionPolicy Bypass ^
 | [`analysis-prompt-xai-en.md`](docs/prompts/analysis-prompt-xai-en.md) | xAI Grok / OpenAI / Ollama | English |
 
 При смене провайдера скопируй содержимое нужного шаблона в **Settings → Analysis prompt template**.
+
+### MCP-сервер
+
+`mcp-server.js` подключает Git History Ledger как [MCP](https://modelcontextprotocol.io)-сервер. Любой MCP-совместимый AI-клиент (Claude Code, Claude Desktop, Cursor, Windsurf, Cline, Continue.dev, Zed и др.) может читать и обновлять журнал коммитов прямо в разговоре, без открытия веб-интерфейса.
+
+#### Доступные инструменты
+
+| Инструмент | Описание |
+|---|---|
+| `gitled_projects` | Список зарегистрированных репозиториев (id, имя, путь) |
+| `gitled_commits` | Поиск по истории коммитов — фильтр по проекту, тексту, дате |
+| `gitled_commit` | Полные данные одного коммита (описание, diff, заметки) |
+| `gitled_update_notes` | Добавить или заменить заметки к коммиту |
+| `gitled_pull` | Выполнить git pull и импортировать новые коммиты |
+| `gitled_gaps` | Найти коммиты в репозитории, которых ещё нет в журнале |
+
+Сервер читает SQLite напрямую — бэкенд не нужен для чтения. Инструменты `gitled_pull` и `gitled_gaps` обращаются к REST-серверу — перед их использованием запусти `npm run dev`.
+
+#### Подключение к Claude Code
+
+Добавь в настройки проекта (`.claude/settings.json`) или глобально (`~/.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "gitled": {
+      "command": "node",
+      "args": ["C:\\OTbase\\GitLed\\mcp-server.js"]
+    }
+  }
+}
+```
+
+#### Подключение к Claude Desktop
+
+Добавь в `claude_desktop_config.json` (Windows: `%APPDATA%\Claude\claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "gitled": {
+      "command": "node",
+      "args": ["C:\\OTbase\\GitLed\\mcp-server.js"]
+    }
+  }
+}
+```
+
+После сохранения перезапусти Claude Desktop. Инструменты `gitled_*` появятся в списке автоматически.
+
+#### Подключение к Cursor / Windsurf / Cline
+
+Ключ конфига тот же (`mcpServers`) — меняется только расположение файла:
+
+| Клиент | Файл конфигурации |
+|---|---|
+| Cursor | `.cursor/mcp.json` в корне проекта или `~/.cursor/mcp.json` глобально |
+| Windsurf | `.windsurf/mcp.json` в корне проекта или `~/.windsurf/mcp.json` глобально |
+| Cline (VS Code) | Настройки VS Code → Cline → MCP Servers |
+| Continue.dev | `.continue/config.json` → блок `mcpServers` |
 
 ### Лицензия
 

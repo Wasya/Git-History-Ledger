@@ -17,6 +17,7 @@ import {
   Settings,
   Check,
   Plus,
+  ExternalLink,
 } from "lucide-react";
 import { api } from "../api/index.js";
 import { usePresets } from "../hooks/usePresets.js";
@@ -102,36 +103,61 @@ function DiffLine({ line }) {
   );
 }
 
-const markdownComponents = {
-  // ReactMarkdown wraps fenced code blocks in its own <pre> before calling our
-  // code renderer. Without this override we'd get nested <pre> elements, which
-  // makes Tailwind Typography's dark <pre> background leak above and below our
-  // custom styled block. Replacing the outer <pre> with a fragment fixes it.
-  pre({ children }) {
-    return <>{children}</>;
-  },
-  code({ node, className, children }) {
-    const isInline = !className && !String(children).includes("\n");
-    if (isInline) {
+const COLLAPSE_LIMIT = 15;
+
+function makeMarkdownComponents({ collapseCode = false, onExpand, onCollapse, t } = {}) {
+  return {
+    pre({ children }) {
+      return <>{children}</>;
+    },
+    code({ node, className, children }) {
+      const isInline = !className && !String(children).includes("\n");
+      if (isInline) {
+        return (
+          <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded text-xs font-mono">
+            {children}
+          </code>
+        );
+      }
+      const content = String(children).trimEnd();
+      const lines = content.split("\n");
+      const isLong = lines.length > COLLAPSE_LIMIT;
+      const displayLines = collapseCode && isLong ? lines.slice(0, COLLAPSE_LIMIT) : lines;
       return (
-        <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded text-xs font-mono">
-          {children}
-        </code>
+        <div>
+          <pre className="bg-gray-100 dark:bg-gray-950 text-gray-800 dark:text-gray-200 rounded-md p-3 overflow-x-auto text-xs font-mono leading-relaxed">
+            <code>
+              {displayLines.map((line, i) => (
+                <DiffLine key={i} line={line} />
+              ))}
+            </code>
+          </pre>
+          {isLong && collapseCode && (
+            <button
+              onClick={onExpand}
+              className="mt-1 text-xs text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors flex items-center gap-1"
+            >
+              <ChevronDown size={12} />
+              {t ? t('commitEntry.rawExpand', { count: lines.length }) : `Show all (${lines.length} lines)`}
+            </button>
+          )}
+          {isLong && !collapseCode && onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="mt-1 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex items-center gap-1"
+            >
+              <ChevronDown size={12} className="rotate-180" />
+              {t ? t('commitEntry.rawCollapse') : 'Collapse'}
+            </button>
+          )}
+        </div>
       );
-    }
-    const content = String(children).trimEnd();
-    const lines = content.split("\n");
-    return (
-      <pre className="bg-gray-100 dark:bg-gray-950 text-gray-800 dark:text-gray-200 rounded-md p-3 overflow-x-auto text-xs font-mono leading-relaxed">
-        <code>
-          {lines.map((line, i) => (
-            <DiffLine key={i} line={line} />
-          ))}
-        </code>
-      </pre>
-    );
-  },
-};
+    },
+  };
+}
+
+// Static components for chat messages (no collapse needed)
+const markdownComponents = makeMarkdownComponents();
 
 function ChatMessage({ msg, onAddToDesc, onReplaceDesc }) {
   const { t } = useI18n();
@@ -201,13 +227,24 @@ function extractDescriptionPreview(desc) {
   return line ? line.slice(0, 70) : null;
 }
 
-export default function CommitEntry({ commit, onUpdate, onDelete }) {
+function buildCommitUrl(remoteUrl, hash) {
+  if (!remoteUrl || !hash) return null;
+  const h = hash.includes('..') ? hash.split('..').pop().trim() : hash.trim();
+  const sep = remoteUrl.includes('gitlab') ? '/-/commit/' : '/commit/';
+  return `${remoteUrl}${sep}${h}`;
+}
+
+export default function CommitEntry({ commit, onUpdate, onDelete, remoteUrl }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [description, setDescription] = useState(commit.description || "");
   const [notes, setNotes] = useState(commit.notes || "");
+  const [rawExpanded, setRawExpanded] = useState(false);
   const editRef = useRef(null);
+
+  const rawLineCount = (commit.raw_output || '').split('\n').filter(l => l.trim()).length;
+  const shouldCollapse = rawLineCount > COLLAPSE_LIMIT;
 
   // Chat
   const [chatOpen, setChatOpen] = useState(false);
@@ -337,8 +374,22 @@ export default function CommitEntry({ commit, onUpdate, onDelete }) {
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </span>
         <GitCommit size={14} className="text-gray-400 flex-shrink-0" />
-        <span className="text-xs font-mono text-indigo-500 dark:text-indigo-400 flex-shrink-0">
-          {hashShort}
+        <span className="flex items-center gap-1 flex-shrink-0">
+          <span className="text-xs font-mono text-indigo-500 dark:text-indigo-400">
+            {hashShort}
+          </span>
+          {buildCommitUrl(remoteUrl, commit.commit_hash) && (
+            <a
+              href={buildCommitUrl(remoteUrl, commit.commit_hash)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={t('commitEntry.openOnGitHub')}
+              className="text-gray-400 hover:text-indigo-500 transition-colors"
+            >
+              <ExternalLink size={11} />
+            </a>
+          )}
         </span>
         {commit.branch && (
           <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-mono flex-shrink-0">
@@ -405,7 +456,12 @@ export default function CommitEntry({ commit, onUpdate, onDelete }) {
                   <div className="prose prose-sm dark:prose-invert max-w-none prose-pre:p-0">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
-                      components={markdownComponents}
+                      components={makeMarkdownComponents({
+                        collapseCode: shouldCollapse && !rawExpanded,
+                        onExpand: () => setRawExpanded(true),
+                        onCollapse: () => setRawExpanded(false),
+                        t,
+                      })}
                     >
                       {commit.description}
                     </ReactMarkdown>

@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { X, AlertTriangle } from 'lucide-react';
+import { X, AlertTriangle, Loader, CheckCircle, GitBranch, Download } from 'lucide-react';
 import { useI18n } from '../i18n/I18nContext';
+import { api } from '../api/index.js';
 
 function isUrl(value) {
   return /^(https?:\/\/|git@|ssh:\/\/)/.test(value.trim());
-}
-
-function cloneCommand(url, name) {
-  const folder = name.trim() || 'my-repo';
-  // suggest a reasonable local path based on platform hint
-  return `git clone ${url.trim()} C:\\projects\\${folder}`;
 }
 
 export default function AddProjectModal({ onClose, onAdd }) {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [path, setPath] = useState('');
+  const [remoteUrl, setRemoteUrl] = useState('');
+  const [remoteStatus, setRemoteStatus] = useState(''); // '' | 'detecting' | 'detected' | 'not_found'
+  // pathStatus: '' | 'checking' | 'ok' | 'no_dir' | 'no_git'
+  const [pathStatus, setPathStatus] = useState('');
+  const [cloneStatus, setCloneStatus] = useState(''); // '' | 'cloning' | 'done' | 'error'
+  const [cloneError, setCloneError] = useState('');
   const [error, setError] = useState('');
 
   const looksLikeUrl = isUrl(path);
@@ -26,11 +27,64 @@ export default function AddProjectModal({ onClose, onAdd }) {
     return () => window.removeEventListener('keydown', handleKey);
   }, [onClose]);
 
+  const handlePathBlur = async () => {
+    const p = path.trim();
+    if (!p || isUrl(p)) return;
+
+    // Check path validity
+    setPathStatus('checking');
+    setCloneStatus('');
+    setCloneError('');
+    try {
+      const check = await api.checkPath(p);
+      if (!check.exists) {
+        setPathStatus('no_dir');
+      } else if (!check.is_git) {
+        setPathStatus('no_git');
+      } else {
+        setPathStatus('ok');
+        // Auto-detect remote URL for valid repos
+        setRemoteStatus('detecting');
+        try {
+          const res = await api.detectRemoteUrl(p);
+          if (res.remote_url) {
+            setRemoteUrl(res.remote_url);
+            setRemoteStatus('detected');
+          } else {
+            setRemoteStatus('not_found');
+          }
+        } catch (_) {
+          setRemoteStatus('not_found');
+        }
+      }
+    } catch (_) {
+      setPathStatus('');
+    }
+  };
+
+  const handleClone = async () => {
+    const p = path.trim();
+    const r = remoteUrl.trim();
+    if (!r || !p) return;
+    setCloneStatus('cloning');
+    setCloneError('');
+    try {
+      await api.cloneRepo(r, p);
+      setCloneStatus('done');
+      setPathStatus('ok');
+      // Auto-detect remote after clone (should match what user entered)
+      setRemoteStatus('detected');
+    } catch (err) {
+      setCloneStatus('error');
+      setCloneError(err.message);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim() || !path.trim()) { setError(t('addProject.errorRequired')); return; }
     try {
-      await onAdd({ name: name.trim(), path: path.trim() });
+      await onAdd({ name: name.trim(), path: path.trim(), remote_url: remoteUrl.trim() });
       onClose();
     } catch (err) {
       setError(err.message);
@@ -63,26 +117,81 @@ export default function AddProjectModal({ onClose, onAdd }) {
           <div>
             <div className="flex items-baseline justify-between mb-1">
               <label className="text-sm font-medium">{t('addProject.pathLabel')}</label>
-              <span className="text-xs text-gray-400">{t('addProject.pathHelper')}</span>
+              <span className="text-xs text-gray-400 flex items-center gap-1">
+                {pathStatus === 'checking' && <><Loader size={10} className="animate-spin" />{t('addProject.pathChecking')}</>}
+                {pathStatus === 'ok'     && <span className="text-green-500 flex items-center gap-1"><CheckCircle size={10} />{t('addProject.pathOk')}</span>}
+                {pathStatus === 'no_dir' && <span className="text-amber-500 flex items-center gap-1"><AlertTriangle size={10} />{t('addProject.pathNoDir')}</span>}
+                {pathStatus === 'no_git' && <span className="text-amber-500 flex items-center gap-1"><AlertTriangle size={10} />{t('addProject.pathNoGit')}</span>}
+                {pathStatus === ''       && <span>{t('addProject.pathHelper')}</span>}
+              </span>
             </div>
             <input
-              className={`input ${looksLikeUrl ? 'border-amber-400 focus:ring-amber-400' : ''}`}
+              className={`input ${looksLikeUrl ? 'border-amber-400 focus:ring-amber-400' : pathStatus === 'no_dir' || pathStatus === 'no_git' ? 'border-amber-400 focus:ring-amber-400' : ''}`}
               placeholder={t('addProject.pathPlaceholder')}
               value={path}
-              onChange={(e) => setPath(e.target.value)}
+              onChange={(e) => { setPath(e.target.value); setPathStatus(''); setCloneStatus(''); }}
+              onBlur={handlePathBlur}
             />
 
+            {/* URL entered in path field warning */}
             {looksLikeUrl && (
-              <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 p-3 space-y-2">
+              <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 p-3">
                 <p className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
                   <AlertTriangle size={13} className="flex-shrink-0" />
                   {t('addProject.pathUrlWarning')}
                 </p>
-                <pre className="text-xs font-mono bg-white dark:bg-gray-900 rounded p-2 overflow-x-auto select-all text-gray-800 dark:text-gray-200">
-                  {cloneCommand(path, name)}
-                </pre>
               </div>
             )}
+
+            {/* Clone prompt: directory missing or not a git repo */}
+            {!looksLikeUrl && (pathStatus === 'no_dir' || pathStatus === 'no_git') && (
+              <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 p-3 space-y-2">
+                <p className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                  <GitBranch size={13} className="flex-shrink-0" />
+                  {remoteUrl.trim()
+                    ? pathStatus === 'no_dir' ? t('addProject.pathClonePrompt') : t('addProject.pathNoGitClonePrompt')
+                    : t('addProject.pathNoDirNoRemote')}
+                </p>
+                {remoteUrl.trim() && cloneStatus !== 'done' && (
+                  <button
+                    type="button"
+                    onClick={handleClone}
+                    disabled={cloneStatus === 'cloning'}
+                    className="btn-primary text-xs disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {cloneStatus === 'cloning'
+                      ? <><Loader size={12} className="animate-spin" />{t('addProject.cloning')}</>
+                      : <><Download size={12} />{t('addProject.cloneBtn')}</>}
+                  </button>
+                )}
+                {cloneStatus === 'done' && (
+                  <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                    <CheckCircle size={12} />{t('addProject.cloneDone')}
+                  </p>
+                )}
+                {cloneStatus === 'error' && (
+                  <p className="text-xs text-red-500">{t('addProject.cloneError', { message: cloneError })}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="flex items-baseline justify-between mb-1">
+              <label className="text-sm font-medium">{t('addProject.remoteUrlLabel')}</label>
+              <span className="text-xs flex items-center gap-1">
+                {remoteStatus === 'detecting' && <><Loader size={10} className="animate-spin text-gray-400" /><span className="text-gray-400">{t('addProject.remoteUrlDetecting')}</span></>}
+                {remoteStatus === 'detected'  && <span className="text-green-500">{t('addProject.remoteUrlDetected')}</span>}
+                {remoteStatus === 'not_found' && <span className="text-gray-400">{t('addProject.remoteUrlNotFound')}</span>}
+                {remoteStatus === ''          && <span className="text-gray-400">{t('addProject.remoteUrlHelper')}</span>}
+              </span>
+            </div>
+            <input
+              className="input"
+              placeholder={t('addProject.remoteUrlPlaceholder')}
+              value={remoteUrl}
+              onChange={(e) => { setRemoteUrl(e.target.value); setRemoteStatus(''); }}
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

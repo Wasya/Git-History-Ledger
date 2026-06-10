@@ -6,7 +6,10 @@
     "noProjects": "No projects",
     "pullNoAI": "Git Pull (no AI)",
     "pullWithAI": "Git Pull + AI analysis",
-    "deleteProject": "Delete project"
+    "deleteProject": "Delete project",
+    "refreshGaps": "Check for missing commits",
+    "catchUp": "Catch up: {count} missing",
+    "gapBadgeTitle": "{count} commits not in journal — click to import"
   },
   "topbar": {
     "search": "Search hash, branch, description...",
@@ -25,6 +28,23 @@
     "pathPlaceholder": "C:\\projects\\my-repo",
     "pathHelper": "Local path to an already cloned repository",
     "pathUrlWarning": "Looks like a URL. Clone the repository locally first:",
+    "remoteUrlLabel": "Remote URL (GitHub / GitLab / ...)",
+    "remoteUrlPlaceholder": "https://github.com/user/repo",
+    "remoteUrlHelper": "Optional — used for commit links from the journal",
+    "remoteUrlDetecting": "Detecting...",
+    "remoteUrlDetected": "Auto-detected",
+    "remoteUrlNotFound": "No remote found",
+    "pathChecking": "Checking...",
+    "pathOk": "Git repository found",
+    "pathNoDir": "Directory not found",
+    "pathNoGit": "Directory exists but is not a git repository",
+    "pathNoDirNoRemote": "Directory not found. Enter a Remote URL to clone.",
+    "pathClonePrompt": "Directory not found. Clone the repository here?",
+    "pathNoGitClonePrompt": "Not a git repository. Clone here?",
+    "cloneBtn": "Clone",
+    "cloning": "Cloning...",
+    "cloneDone": "Cloned successfully",
+    "cloneError": "Clone error: {message}",
     "errorRequired": "Both fields are required",
     "cancel": "Cancel",
     "submit": "Add Project"
@@ -46,6 +66,9 @@
   },
   "importLog": {
     "title": "Import git history",
+    "catchUpTitle": "Catch up: {count} missing commits",
+    "catchUpHint": "These commits exist in the repository but are missing from the journal.",
+    "catchUpBtn": "Import all ({count})",
     "tabAuto": "Auto (from project path)",
     "tabPaste": "Paste output",
     "projectLabel": "Project",
@@ -68,7 +91,9 @@
     "errorNoDates": "Click Preview to load commits first",
     "pathInfo": "Backend will run git log in: {path}",
     "pathMissing": "Project path is not set — auto mode unavailable.",
-    "noNewCommits": "All found commits are already imported"
+    "noNewCommits": "All found commits are already imported",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all"
   },
   "commitTree": {
     "empty": "No commits yet. Import git pull output to get started."
@@ -94,7 +119,10 @@
     "doneEditingPresets": "Done",
     "editPresetsTooltip": "Edit presets",
     "newPreset": "New preset",
-    "chatError": "Error: {message}"
+    "chatError": "Error: {message}",
+    "rawExpand": "Show all ({count} lines)",
+    "rawCollapse": "Collapse",
+    "openOnGitHub": "Open commit on GitHub"
   },
   "settings": {
     "title": "Settings",
@@ -144,6 +172,10 @@
     "gitPullError": "Git Pull error: {message}",
     "aiError": "AI analysis failed: {message}",
     "analyzingProgress": "Analyzing {n} of {total}...",
-    "analyzeError": "AI analysis error: {message}"
+    "analyzeError": "AI analysis error: {message}",
+    "refreshingGaps": "Checking for missing commits...",
+    "noGaps": "All up to date — no missing commits found",
+    "gapsFound": "Found {count} missing commits",
+    "catchUpDone": "Imported {count} missing commits"
   }
 }

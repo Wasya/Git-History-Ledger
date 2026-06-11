@@ -1,7 +1,7 @@
 # Git History Ledger
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js|101](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 
 A local web app that turns raw `git pull` output into a searchable, AI-annotated change journal.  
@@ -39,8 +39,8 @@ A commit open on the **Diff** tab — per-file, syntax-highlighted diff with lin
 
 ![Diff view](docs/diff-view.png)
 
-| Import git pull | Import git history | Catch up (gap detection) |
-|---|---|---|
+| Import git pull                           | Import git history                                      | Catch up (gap detection)               |
+| ----------------------------------------- | ------------------------------------------------------- | -------------------------------------- |
 | ![Import git pull](docs/import-modal.png) | ![Import git history](docs/import-GitHistory-modal.png) | ![Catch up](docs/Catch-up-missing.png) |
 
 | Add / Edit Project | Settings |

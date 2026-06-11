@@ -19,6 +19,7 @@ Paste or auto-pull from your repositories — get a structured, browsable histor
 - **Gap detection** — scan for commits that exist in the repo but are missing from the journal; one-click catch-up import
 - **Tree view** — commits grouped by Year → Month → Week → Day
 - **AI analysis** — automatic summaries via xAI, OpenAI, Anthropic, Claude Code CLI, or Ollama (local)
+- **Test-impact analysis** — point a project at its automated-tests folder; the AI cross-references the relevant tests in each commit analysis and flags coverage gaps (Robot Framework)
 - **Chat with commits** — ask follow-up questions about any change
 - **Markdown editor** — rich description and notes fields with live preview
 - **Diff syntax highlighting** — colored `+`/`-` lines, file stats, commit ranges; long bodies auto-collapsed with expand toggle
@@ -34,9 +35,17 @@ Paste or auto-pull from your repositories — get a structured, browsable histor
 
 ## Screenshots
 
-| Import | Add Project | Settings |
-|--------|-------------|----------|
-| ![Import modal](docs/import-modal.png) | ![Add project](docs/add-project.png) | ![Settings](docs/settings.png) |
+A commit open on the **Diff** tab — per-file, syntax-highlighted diff with line numbers:
+
+![Diff view](docs/diff-view.png)
+
+| Import git pull | Import git history | Catch up (gap detection) |
+|---|---|---|
+| ![Import git pull](docs/import-modal.png) | ![Import git history](docs/import-GitHistory-modal.png) | ![Catch up](docs/Catch-up-missing.png) |
+
+| Add / Edit Project | Settings |
+|---|---|
+| ![Add project](docs/add-project.png) | ![Settings](docs/settings.png) |
 
 ---
 
@@ -217,9 +226,11 @@ Ready-made templates for each provider are in [`docs/prompts/`](docs/prompts/):
 | [`analysis-prompt-xai-ru.md`](docs/prompts/analysis-prompt-xai-ru.md) | xAI Grok / OpenAI / Ollama | Russian |
 | [`analysis-prompt-xai-en.md`](docs/prompts/analysis-prompt-xai-en.md) | xAI Grok / OpenAI / Ollama | English |
 
-The **Claude Code CLI** templates include a full workflow: fetch the diff, match records in GitLed, write analysis, and save via API — all through bash commands.
+The **Claude Code CLI** templates use a format-only style: the diff is injected automatically by the backend, and the prompt only describes the output structure. Claude CLI runs sandboxed — no bash commands, no tool calls.
 
 The **xAI / OpenAI / Ollama** templates use a minimal, direct imperative style that works better with models that tend to over-explain structured instructions. If you switch providers, copy the matching template into **Settings → Analysis prompt template**.
+
+> 📖 For how to write your own prompt — placeholders (`{projectName}`, `{projectPath}`, `{testsPath}`, `{gitOutput}`), good/anti examples, and the tests-folder field — see the **[Custom Prompt Guide](docs/CUSTOM_PROMPT_GUIDE.md)**.
 
 ---
 
@@ -247,7 +258,7 @@ The JSON format is simple and human-readable — no build step needed.
 | `ai_model` | Model name, e.g. `gpt-4o-mini` |
 | `ai_base_url` | Custom base URL (required for Ollama, optional for others) |
 | `ai_prompt_lang` | Default analysis language: `ru` or `en` |
-| `ai_prompt_custom` | Custom prompt template (supports `{projectName}`, `{projectPath}`, `{gitOutput}`) |
+| `ai_prompt_custom` | Custom prompt template (supports `{projectName}`, `{projectPath}`, `{testsPath}`, `{gitOutput}`) — see the [Custom Prompt Guide](docs/CUSTOM_PROMPT_GUIDE.md) |
 | `font_mono` | Monospace font CSS value |
 | `font_size` | Code font size in px |
 
@@ -268,7 +279,7 @@ The JSON format is simple and human-readable — no build step needed.
 
 | Table | Fields |
 |---|---|
-| `projects` | `id`, `name`, `path`, `created_at` |
+| `projects` | `id`, `name`, `path`, `remote_url`, `tests_path`, `created_at` |
 | `commits` | `id`, `project_id`, `commit_date`, `branch`, `commit_hash`, `raw_output`, `description`, `notes`, `created_at` |
 
 `ON DELETE CASCADE` — deleting a project removes all its commits.
@@ -401,6 +412,7 @@ npm run dev
 - **Поиск пропусков** — сканирует репозиторий на коммиты, которых нет в журнале; импорт в один клик
 - Дерево коммитов: Год → Месяц → Неделя → День
 - AI-анализ изменений (xAI, OpenAI, Anthropic, Claude Code CLI, Ollama)
+- **Анализ влияния на тесты** — укажи проекту папку с автотестами; AI сопоставит релевантные тесты в анализе каждого коммита и подскажет пробелы в покрытии (Robot Framework)
 - Чат с коммитом — задавай уточняющие вопросы об изменениях
 - Markdown-редактор описаний и заметок
 - Подсветка синтаксиса diff; длинные тела коммитов сворачиваются с кнопкой раскрытия
@@ -411,6 +423,20 @@ npm run dev
 - Мультиязычный интерфейс — RU/EN встроены, поддержка кастомных JSON-файлов локализации
 - Тёмная и светлая тема
 - Настройка шрифта кода
+
+### Скриншоты
+
+Коммит, открытый на вкладке **Diff** — пофайловый diff с подсветкой синтаксиса и номерами строк:
+
+![Diff view](docs/diff-view.png)
+
+| Импорт git pull | Импорт истории git | Догнать пропущенные |
+|---|---|---|
+| ![Импорт git pull](docs/import-modal.png) | ![Импорт истории](docs/import-GitHistory-modal.png) | ![Догнать](docs/Catch-up-missing.png) |
+
+| Добавить / изменить проект | Настройки |
+|---|---|
+| ![Проект](docs/add-project.png) | ![Настройки](docs/settings.png) |
 
 ### Импорт истории коммитов
 
@@ -486,6 +512,8 @@ powershell -NoProfile -ExecutionPolicy Bypass ^
 | [`analysis-prompt-xai-en.md`](docs/prompts/analysis-prompt-xai-en.md) | xAI Grok / OpenAI / Ollama | English |
 
 При смене провайдера скопируй содержимое нужного шаблона в **Settings → Analysis prompt template**.
+
+> 📖 Как написать свой промпт — переменные (`{projectName}`, `{projectPath}`, `{testsPath}`, `{gitOutput}`), хорошие примеры и антипримеры, поле папки с тестами — см. **[Руководство по кастомному промпту](docs/CUSTOM_PROMPT_GUIDE.md)**.
 
 ### MCP-сервер
 

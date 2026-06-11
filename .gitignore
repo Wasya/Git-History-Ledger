@@ -8,6 +8,7 @@ node_modules/
 
 # Work / scratch files
 _work/
+TODO.md
 
 # Claude Code internal files
 .claude/

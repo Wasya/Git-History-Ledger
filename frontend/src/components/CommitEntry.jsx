@@ -433,6 +433,11 @@ export default function CommitEntry({ commit, onUpdate, onDelete, remoteUrl }) {
     setEditing(false);
   };
 
+  const handleResetAnalysis = async () => {
+    if (!window.confirm(t('commitEntry.resetAnalysisConfirm'))) return;
+    await onUpdate(commit.id, { description: '', notes: commit.notes || '' });
+  };
+
   // ── Chat ──────────────────────────────────────────────────────────────────
 
   const doSend = async (currentMessages, question) => {
@@ -683,6 +688,15 @@ export default function CommitEntry({ commit, onUpdate, onDelete, remoteUrl }) {
                   >
                     <Pencil size={13} /> {t('commitEntry.edit')}
                   </button>
+                  {commit.description && (
+                    <button
+                      onClick={handleResetAnalysis}
+                      className="btn-secondary text-xs"
+                      title={t('commitEntry.resetAnalysis')}
+                    >
+                      <RotateCcw size={13} /> {t('commitEntry.resetAnalysis')}
+                    </button>
+                  )}
                   <button
                     onClick={() => onDelete(commit.id)}
                     className="btn-danger text-xs"

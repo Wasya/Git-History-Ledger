@@ -47,7 +47,7 @@ Git pull output:
 {gitOutput}
 \`\`\``;
 
-function buildPrompt(gitOutput, projectName, config, projectPath) {
+function buildPrompt(gitOutput, projectName, config, projectPath, testsPath) {
   const custom = (config && config.ai_prompt_custom || '').trim();
   const lang = (config && config.ai_prompt_lang) || 'ru';
   const template = custom || (lang !== 'en' ? DEFAULT_PROMPT_RU : DEFAULT_PROMPT_EN);
@@ -55,7 +55,8 @@ function buildPrompt(gitOutput, projectName, config, projectPath) {
   return template
     .replace(/\{projectName\}/g, projectName)
     .replace(/\{projectPath\}/g, projectPath || '')
-    .replace(/\{gitOutput\}/g, gitOutput.slice(0, 6000));
+    .replace(/\{testsPath\}/g, testsPath || '')
+    .replace(/\{gitOutput\}/g, gitOutput.slice(0, 12000));
 }
 
 module.exports.DEFAULT_PROMPT_RU = DEFAULT_PROMPT_RU;
@@ -122,13 +123,16 @@ async function callAnthropic(apiKey, model, prompt) {
  */
 function callClaudeCLI(prompt, projectPath) {
   const tmpFile = path.join(os.tmpdir(), `gl_${Date.now()}.txt`);
+  const mcpFile = path.join(os.tmpdir(), `gl_mcp_${Date.now()}.json`);
   fs.writeFileSync(tmpFile, prompt, 'utf8');
+  // Empty MCP config so --strict-mcp-config loads no servers from global/project configs
+  fs.writeFileSync(mcpFile, '{"mcpServers":{}}', 'utf8');
 
   try {
-    const dirFlag = projectPath ? ` --add-dir "${projectPath}"` : '';
+    const flags = `--strict-mcp-config --mcp-config "${mcpFile}" --disallowedTools "Bash,PowerShell"`;
     const cmd = process.platform === 'win32'
-      ? `type "${tmpFile}" | claude -p${dirFlag}`
-      : `claude -p${dirFlag} < "${tmpFile}"`;
+      ? `type "${tmpFile}" | claude -p ${flags}`
+      : `claude -p ${flags} < "${tmpFile}"`;
 
     const opts = {
       encoding: 'utf8',
@@ -136,7 +140,6 @@ function callClaudeCLI(prompt, projectPath) {
       maxBuffer: 4 * 1024 * 1024,
       shell: true,
     };
-    if (projectPath) opts.cwd = projectPath;
 
     const output = execSync(cmd, opts);
 
@@ -144,15 +147,16 @@ function callClaudeCLI(prompt, projectPath) {
     if (!text) throw new Error('claude CLI вернул пустой ответ');
     return text;
   } catch (err) {
-    // execSync throws with .stderr / .stdout / .message
     const detail = (err.stderr || err.stdout || err.message || '').toString().slice(0, 400);
     throw new Error(`claude CLI ошибка: ${detail}`);
   } finally {
     try { fs.unlinkSync(tmpFile); } catch {}
+    try { fs.unlinkSync(mcpFile); } catch {}
   }
 }
 
-async function analyzeWithAI(config, gitOutput, projectName, projectPath) {
+// Runs a single completed prompt against the configured provider.
+function runPrompt(config, prompt, projectPath) {
   const provider = config.ai_provider;
   if (!provider) return null;
 
@@ -160,8 +164,6 @@ async function analyzeWithAI(config, gitOutput, projectName, projectPath) {
   const baseUrl = config.ai_base_url || defaults.base_url || '';
   const model   = config.ai_model    || defaults.model    || '';
   const apiKey  = config.ai_api_key  || '';
-
-  const prompt = buildPrompt(gitOutput, projectName, config, projectPath);
 
   switch (provider) {
     case 'claude_cli':
@@ -179,6 +181,46 @@ async function analyzeWithAI(config, gitOutput, projectName, projectPath) {
     default:
       throw new Error(`Неизвестный провайдер: ${provider}`);
   }
+}
+
+async function analyzeWithAI(config, gitOutput, projectName, projectPath) {
+  if (!config.ai_provider) return null;
+  const prompt = buildPrompt(gitOutput, projectName, config, projectPath);
+  return runPrompt(config, prompt, projectPath);
+}
+
+const NOTES_MARKER = '@@@NOTES@@@';
+
+/**
+ * Produces both the formatted analysis (description) and a short summary (notes)
+ * in a single provider call. Optionally augments the prompt with relevant test
+ * context gathered by the backend. Returns { description, notes }.
+ */
+async function analyzeForLedger(config, gitOutput, projectName, projectPath, testContext, testsPath) {
+  if (!config.ai_provider) return { description: '', notes: '' };
+  const ru = (config.ai_prompt_lang || 'ru') !== 'en';
+
+  let prompt = buildPrompt(gitOutput, projectName, config, projectPath, testsPath);
+
+  if (testContext && testContext.trim()) {
+    prompt += ru
+      ? `\n\n=== Существующие автотесты, возможно затронутые этим изменением ===\n${testContext}\n\nВ разделе про тестирование сошлись на эти тесты: какие из них стоит прогнать и есть ли пробелы в покрытии.`
+      : `\n\n=== Existing automated tests possibly affected by this change ===\n${testContext}\n\nIn the testing section, reference these tests: which to run and whether coverage gaps exist.`;
+  }
+
+  prompt += ru
+    ? `\n\nВ САМОМ КОНЦЕ ответа, на отдельной строке, выведи маркер ${NOTES_MARKER}, а после него — 1–3 предложения краткой сути изменения без форматирования (что сделано, почему важно, на что влияет).`
+    : `\n\nAT THE VERY END, on its own line, output the marker ${NOTES_MARKER} followed by a 1–3 sentence plain-text summary (what was done, why it matters, what it affects).`;
+
+  const raw = await runPrompt(config, prompt, projectPath);
+  if (!raw) return { description: '', notes: '' };
+
+  const idx = raw.indexOf(NOTES_MARKER);
+  if (idx === -1) return { description: raw.trim(), notes: '' };
+  return {
+    description: raw.slice(0, idx).trim(),
+    notes: raw.slice(idx + NOTES_MARKER.length).replace(/^[\s:—-]+/, '').trim(),
+  };
 }
 
 async function testConnection(config) {
@@ -320,4 +362,4 @@ async function askWithContext(config, commit, projectName, messages, projectPath
   }
 }
 
-module.exports = { analyzeWithAI, askWithContext, testConnection, PROVIDER_DEFAULTS, DEFAULT_PROMPT_RU, DEFAULT_PROMPT_EN };
+module.exports = { analyzeWithAI, analyzeForLedger, askWithContext, testConnection, PROVIDER_DEFAULTS, DEFAULT_PROMPT_RU, DEFAULT_PROMPT_EN };

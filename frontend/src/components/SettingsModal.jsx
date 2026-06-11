@@ -473,6 +473,7 @@ export default function SettingsModal({ onClose }) {
               {t('settings.promptVariables')}{' '}
               <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{projectName}'}</code>{' '}
               <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{projectPath}'}</code>{' '}
+              <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{testsPath}'}</code>{' '}
               <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{gitOutput}'}</code>
             </p>
             <textarea

@@ -7,11 +7,13 @@ function isUrl(value) {
   return /^(https?:\/\/|git@|ssh:\/\/)/.test(value.trim());
 }
 
-export default function AddProjectModal({ onClose, onAdd }) {
+export default function AddProjectModal({ onClose, onAdd, onSave, project }) {
   const { t } = useI18n();
-  const [name, setName] = useState('');
-  const [path, setPath] = useState('');
-  const [remoteUrl, setRemoteUrl] = useState('');
+  const isEdit = !!project;
+  const [name, setName] = useState(project?.name || '');
+  const [path, setPath] = useState(project?.path || '');
+  const [testsPath, setTestsPath] = useState(project?.tests_path || '');
+  const [remoteUrl, setRemoteUrl] = useState(project?.remote_url || '');
   const [remoteStatus, setRemoteStatus] = useState(''); // '' | 'detecting' | 'detected' | 'not_found'
   // pathStatus: '' | 'checking' | 'ok' | 'no_dir' | 'no_git'
   const [pathStatus, setPathStatus] = useState('');
@@ -83,8 +85,15 @@ export default function AddProjectModal({ onClose, onAdd }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim() || !path.trim()) { setError(t('addProject.errorRequired')); return; }
+    const data = {
+      name: name.trim(),
+      path: path.trim(),
+      remote_url: remoteUrl.trim(),
+      tests_path: testsPath.trim(),
+    };
     try {
-      await onAdd({ name: name.trim(), path: path.trim(), remote_url: remoteUrl.trim() });
+      if (isEdit) await onSave(project.id, data);
+      else await onAdd(data);
       onClose();
     } catch (err) {
       setError(err.message);
@@ -95,7 +104,7 @@ export default function AddProjectModal({ onClose, onAdd }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-base font-semibold">{t('addProject.title')}</h2>
+          <h2 className="text-base font-semibold">{isEdit ? t('addProject.editTitle') : t('addProject.title')}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
             <X size={18} />
           </button>
@@ -194,9 +203,20 @@ export default function AddProjectModal({ onClose, onAdd }) {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium mb-1">{t('addProject.testsPathLabel')}</label>
+            <input
+              className="input"
+              placeholder={t('addProject.testsPathPlaceholder')}
+              value={testsPath}
+              onChange={(e) => setTestsPath(e.target.value)}
+            />
+            <p className="text-xs text-gray-400 mt-1">{t('addProject.testsPathHelper')}</p>
+          </div>
+
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary">{t('addProject.cancel')}</button>
-            <button type="submit" className="btn-primary">{t('addProject.submit')}</button>
+            <button type="submit" className="btn-primary">{isEdit ? t('addProject.save') : t('addProject.submit')}</button>
           </div>
         </form>
       </div>

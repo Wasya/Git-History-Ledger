@@ -7,6 +7,7 @@
     "pullNoAI": "Git Pull (без AI)",
     "pullWithAI": "Git Pull + AI анализ",
     "deleteProject": "Удалить проект",
+    "editProject": "Редактировать проект",
     "refreshGaps": "Проверить пропущенные коммиты",
     "catchUp": "Догнать: {count} пропущенных",
     "gapBadgeTitle": "{count} коммитов не в журнале — нажмите, чтобы импортировать"
@@ -46,6 +47,11 @@
     "cloneDone": "Склонировано успешно",
     "cloneError": "Ошибка клонирования: {message}",
     "errorRequired": "Оба поля обязательны",
+    "testsPathLabel": "Папка с тестами (необязательно)",
+    "testsPathPlaceholder": "C:\\projects\\my-repo-tests",
+    "testsPathHelper": "Папка с автотестами — AI сопоставит их с изменениями в анализе",
+    "editTitle": "Редактировать проект",
+    "save": "Сохранить",
     "cancel": "Отмена",
     "submit": "Добавить проект"
   },
@@ -124,7 +130,9 @@
     "rawCollapse": "Свернуть",
     "openOnGitHub": "Открыть коммит на GitHub",
     "tabAnalysis": "Анализ",
-    "tabDiff": "Diff"
+    "tabDiff": "Diff",
+    "resetAnalysis": "Сбросить анализ",
+    "resetAnalysisConfirm": "Очистить AI-анализ для этого коммита? Заметки будут сохранены."
   },
   "settings": {
     "title": "Настройки",

@@ -87,6 +87,7 @@ export default function App() {
   const [showImport, setShowImport] = useState(false);
   const [showImportLog, setShowImportLog] = useState(false);
   const [showAddProject, setShowAddProject] = useState(false);
+  const [editingProject, setEditingProject] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
 
   // Gap detection
@@ -135,6 +136,11 @@ export default function App() {
     const p = await api.createProject(data);
     setProjects((prev) => [p, ...prev]);
     setSelectedProjectId(p.id);
+  };
+
+  const handleSaveProject = async (id, data) => {
+    const updated = await api.updateProject(id, data);
+    setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
   };
 
   const handleDeleteProject = async (id) => {
@@ -325,6 +331,7 @@ export default function App() {
         selectedId={selectedProjectId}
         onSelect={setSelectedProjectId}
         onAdd={() => setShowAddProject(true)}
+        onEdit={setEditingProject}
         onDelete={handleDeleteProject}
         onPull={handleGitPull}
         onPullOnly={handleGitPullOnly}
@@ -394,10 +401,12 @@ export default function App() {
         </main>
       </div>
 
-      {showAddProject && (
+      {(showAddProject || editingProject) && (
         <AddProjectModal
-          onClose={() => setShowAddProject(false)}
+          project={editingProject}
+          onClose={() => { setShowAddProject(false); setEditingProject(null); }}
           onAdd={handleAddProject}
+          onSave={handleSaveProject}
         />
       )}
 

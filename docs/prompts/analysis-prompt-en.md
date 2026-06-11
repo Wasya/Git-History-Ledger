@@ -1,117 +1,81 @@
-# Commit Analysis Prompt Template (Claude Code CLI)
+# Commit Analysis Prompt Template (Claude CLI)
 
-This prompt is intended for the **Claude Code (CLI)** provider.  
-It gives Claude direct access to the repository via bash commands.
+This prompt is intended for the **Claude Code (CLI)** provider.
 
-Paste the content into **Settings → Analysis prompt template**.
+> **Important:** Claude CLI runs in sandboxed mode — no bash tools available.
+> The full diff is injected by the backend automatically. The prompt must only
+> describe the **output format**; do not include git/curl/bash commands.
 
-Supported variables: `{projectName}`, `{projectPath}`, `{gitOutput}`
+Paste the content (inside triple backticks) into **Settings → Analysis prompt template**.
+
+Supported variables: `{projectName}`, `{projectPath}`, `{testsPath}`, `{gitOutput}`
+
+> **Note:** `{testsPath}` is a string substitution for the tests folder path.
+> The list of relevant test cases is appended to the prompt automatically by the
+> backend (when **Tests folder** is configured in project settings). The `notes`
+> field is also auto-filled — the backend appends its own instruction after your template.
 
 ---
 
 ```
-  1. Fetch the commit
-  1.1. Allow bash command execution
-  1.2. Navigate to the project folder {projectPath}
-  1.3. Run git pull, find the new commit(s)
-  1.4. To analyze a range of commits:
-	git log --format="%H %ad %an : %s" --date=short
-	# for a specific period:
-	git log --format="%H %ad %an : %s" --date=short --after="2026-02-28" --before="2026-04-01"
+You are a technical code change analyst. Below is the full diff for a commit in project "{projectName}". Write a ready-to-use analysis in Markdown format.
 
-  ---
-  2. Match with GitLed
+IMPORTANT: all the necessary code is already provided in the block below. Do NOT run git/bash/curl, do NOT request permissions, do NOT suggest commands to execute — just return the analysis text.
 
-  Check which records already exist and what fields are filled:
+Format:
 
-  curl -s "http://localhost:3001/api/commits?project_id=1" | python -c "
-  import sys, json
-  data = json.load(sys.stdin)
-  for c in sorted(data, key=lambda x: x['id']):
-      has_desc = bool(c.get('description'))
-      has_notes = bool(c.get('notes'))
-      print(f'id={c[\"id\"]} {c[\"commit_date\"][:10]} hash={c[\"commit_hash\"]} desc={has_desc} notes={has_notes}')
-  "
+## {Author} — {commit message}
 
-  commit_hash in GitLed has the format FROM..TO — the record covers all commits between FROM and TO.
+For each changed file:
+**File:** `path/to/file` | +N, -N
 
-  ---
-  3. Get the commit diff
+### What changed
+- summary of code changes
 
-  # Single commit:
-  git show HASH --stat    # brief statistics
-  git show HASH           # full diff
+### Reason / context
+- why this was done (based on the code and commit message)
 
-  # Range:
-  git log --stat FROM..TO
-  git diff FROM TO
+### Before / after behavior   (only for bug fixes)
+- how it was — how it is now
 
-  ---
-  4. Write the analysis (into description)
+### What to check when testing   (if relevant)
+- scenarios to cover based on the changes;
+- test cases to verify; project automated tests are in {testsPath}
 
-  The description format — always starts with a raw git stat in a code block, then ---, then the analysis:
+### GUI impact   (if relevant)
+- what changes in UX/UI and where to find it in the interface
 
-  ```
-  Updating FROM..TO
-  Fast-forward
-   path/to/file.py | N +++---
-   N files changed, N insertions(+), N deletions(-)
-  HASH - Author, YYYY-MM-DD : commit message
-  ```
+Analysis depth depends on complexity:
+- Trivial commit (1–3 lines, obvious): 3–5 bullet points, no extra sections
+- Medium (bug fix, UX tweak): "What changed" + "Reason" sections
+- Large (new feature, refactor, security): all relevant sections
 
-  ---
+If the diff covers multiple commits — a separate section per commit.
+Wrap tables and ASCII diagrams in ``` blocks.
+Do not repeat the raw diff in the response.
 
-  ## Author — commit message
-
-  **File:** `path/to/file` | +N, -N
-
-  ### What changed
-  ...
-
-  ### Reason / context
-  ...
-
-  ### Before/after behavior (if a bug fix)
-  ...
-
-  ### Affected tests (if relevant)
-  ...
-
-  ### GUI impact (if relevant)
-  - UX/UI impact
-  - Before → after
-  - Where to find in the interface
-
-  Analysis depth depends on complexity:
-  - Trivial commit (1–3 lines, obvious): 3–5 bullet points
-  - Medium (bug, UX fix): full "What changed" + "Reason" sections
-  - Large (new feature, refactor, security): full analysis with all sections
-
-  If a record covers multiple commits — a separate section per commit or a shared group heading.
-  If using a table or mermaid diagram — wrap it in triple backticks.
-
-  ---
-  5. Write notes (brief summary)
-
-  The notes field — 1–3 sentences: what was done, why it matters, what it affects.
-  No formatting. If there is a connection to another GitLed record — include its id.
-
-  ---
-  6. Build the JSON and send a PUT
-
-  # Create the file (in the current directory):
-  cat > ./upd_{id}.json << 'EOF'
-  {
-    "description": "...",
-    "notes": "..."
-  }
-  EOF
-
-  # Send:
-  curl -s -X PUT http://localhost:3001/api/commits/{id} \
-    -H "Content-Type: application/json" \
-    -d @./upd_{id}.json
-
-  # Verify the result:
-  curl -s http://localhost:3001/api/commits/{id} | python -c "import sys,json; c=json.load(sys.stdin); print('OK' if c.get('description') else 'EMPTY')"
+Diff:
+\`\`\`
+{gitOutput}
+\`\`\`
 ```
+
+---
+
+## Section guide
+
+| Section | When to include |
+|---|---|
+| **What changed** | Always — summary of code changes |
+| **Reason / context** | Always — why it was done |
+| **Before / after behavior** | Bug fixes only |
+| **What to check when testing** | When changes affect logic or behavior |
+| **GUI impact** | When UI/UX components are modified |
+
+## Analysis depth
+
+| Commit | Scope |
+|---|---|
+| Trivial (1–3 lines, config, rename) | 3–5 bullet points |
+| Medium (bug fix, UX tweak) | "What changed" + "Reason" sections |
+| Large (new feature, refactor, security) | All relevant sections |

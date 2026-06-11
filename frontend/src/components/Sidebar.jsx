@@ -1,8 +1,8 @@
 import React from 'react';
-import { FolderGit2, Plus, Trash2, GitPullRequest, RefreshCw, Loader, ScanSearch } from 'lucide-react';
+import { FolderGit2, Plus, Trash2, GitPullRequest, RefreshCw, Loader, ScanSearch, Pencil } from 'lucide-react';
 import { useI18n } from '../i18n/I18nContext';
 
-export default function Sidebar({ projects, selectedId, onSelect, onAdd, onDelete, onPull, onPullOnly, pullingId, gapCounts = {}, onRefreshGaps, refreshingGaps, onCatchUp }) {
+export default function Sidebar({ projects, selectedId, onSelect, onAdd, onEdit, onDelete, onPull, onPullOnly, pullingId, gapCounts = {}, onRefreshGaps, refreshingGaps, onCatchUp }) {
   const { t } = useI18n();
   return (
     <aside className="w-64 flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
@@ -92,6 +92,14 @@ export default function Sidebar({ projects, selectedId, onSelect, onAdd, onDelet
                   ? <Loader size={13} className="animate-spin" />
                   : <GitPullRequest size={13} />
                 }
+              </button>
+
+              <button
+                onClick={(e) => { e.stopPropagation(); onEdit(p); }}
+                className="flex-shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-500 transition-all"
+                title={t('sidebar.editProject')}
+              >
+                <Pencil size={13} />
               </button>
 
               <button

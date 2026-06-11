@@ -9,6 +9,8 @@ db.pragma('foreign_keys = ON');
 
 // Migration: add remote_url column to existing databases
 try { db.exec(`ALTER TABLE projects ADD COLUMN remote_url TEXT DEFAULT ''`); } catch (_) {}
+// Migration: add tests_path column (folder with automated tests for AI test-impact analysis)
+try { db.exec(`ALTER TABLE projects ADD COLUMN tests_path TEXT DEFAULT ''`); } catch (_) {}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS projects (

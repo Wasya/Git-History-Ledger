@@ -72,8 +72,15 @@ function parseGitLog(rawText) {
     const m = line.match(GIT_LOG_LINE_RE);
     if (m) {
       if (current) commits.push(current);
-      const [, hash, date] = m;
-      current = { commitHash: hash, commitDate: `${date}T00:00:00`, headerLine: line.trim(), statLines: [] };
+      const [, hash, date, author, message] = m;
+      current = {
+        commitHash: hash,
+        commitDate: `${date}T00:00:00`,
+        date,
+        author: author.trim(),
+        message: message.trim(),
+        statLines: [],
+      };
     } else if (current) {
       if (line.trim() || current.statLines.length > 0) {
         current.statLines.push(line);
@@ -83,16 +90,25 @@ function parseGitLog(rawText) {
   if (current) commits.push(current);
 
   return commits.map((c) => {
+    // Drop leading/trailing blank stat lines, keep per-line indentation.
+    while (c.statLines.length && !c.statLines[0].trim()) c.statLines.shift();
     while (c.statLines.length && !c.statLines[c.statLines.length - 1].trim()) c.statLines.pop();
+
+    // Unify with the git pull format: stat block first, then a footer line
+    //   "<short hash> - <author>, <date> : <message>"
+    // (no leading 40-char hash header line).
+    const short = (c.commitHash || '').slice(0, 8);
+    const footer = `${short} - ${c.author}, ${c.date} : ${c.message}`;
     const rawOutput = c.statLines.length
-      ? c.headerLine + '\n\n' + c.statLines.join('\n')
-      : c.headerLine;
+      ? c.statLines.join('\n') + '\n' + footer
+      : footer;
+
     return {
       commitHash: c.commitHash,
       commitDate: c.commitDate,
       branch: null,
-      raw_output: rawOutput.trim(),
-      description: '```diff\n' + rawOutput.trim() + '\n```',
+      raw_output: rawOutput,
+      description: '```diff\n' + rawOutput + '\n```',
     };
   });
 }

@@ -5,7 +5,8 @@ const { execSync, execFileSync } = require('child_process');
 const db = require('./db');
 const { parseMultipleSessions, parseGitLog } = require('./parser');
 const { getConfig, saveConfig } = require('./config');
-const { analyzeWithAI, askWithContext, testConnection, PROVIDER_DEFAULTS, DEFAULT_PROMPT_RU, DEFAULT_PROMPT_EN } = require('./ai');
+const { analyzeWithAI, analyzeForLedger, askWithContext, testConnection, PROVIDER_DEFAULTS, DEFAULT_PROMPT_RU, DEFAULT_PROMPT_EN } = require('./ai');
+const { findRelevantTests } = require('./testmatch');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -84,7 +85,7 @@ app.post('/api/projects/clone', (req, res) => {
 });
 
 app.post('/api/projects', (req, res) => {
-  const { name, path, remote_url } = req.body;
+  const { name, path, remote_url, tests_path } = req.body;
   if (!name || !path) return res.status(400).json({ error: 'name and path are required' });
 
   // Auto-detect remote URL if not provided
@@ -93,11 +94,31 @@ app.post('/api/projects', (req, res) => {
     : detectRemoteUrl(path.trim());
 
   const result = db.prepare(
-    'INSERT INTO projects (name, path, remote_url) VALUES (?, ?, ?)'
-  ).run(name.trim(), path.trim(), remoteUrl);
+    'INSERT INTO projects (name, path, remote_url, tests_path) VALUES (?, ?, ?, ?)'
+  ).run(name.trim(), path.trim(), remoteUrl, (tests_path || '').trim());
 
   const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(project);
+});
+
+// Update editable project fields (name, path, remote_url, tests_path)
+app.put('/api/projects/:id', (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  const { name, path, remote_url, tests_path } = req.body;
+  const next = {
+    name: name !== undefined ? String(name).trim() : project.name,
+    path: path !== undefined ? String(path).trim() : project.path,
+    remote_url: remote_url !== undefined ? normalizeRemoteUrl(remote_url) : project.remote_url,
+    tests_path: tests_path !== undefined ? String(tests_path).trim() : project.tests_path,
+  };
+  if (!next.name || !next.path) return res.status(400).json({ error: 'name and path are required' });
+
+  db.prepare('UPDATE projects SET name = ?, path = ?, remote_url = ?, tests_path = ? WHERE id = ?')
+    .run(next.name, next.path, next.remote_url, next.tests_path, project.id);
+
+  res.json(db.prepare('SELECT * FROM projects WHERE id = ?').get(project.id));
 });
 
 app.delete('/api/projects/:id', (req, res) => {
@@ -480,30 +501,60 @@ app.post('/api/commits/:id/analyze', (req, res) => {
   const config = getConfig();
   if (!config.ai_provider) return res.status(400).json({ error: 'AI provider not configured' });
 
-  // For single-hash commits (git log import) fetch the full diff for AI.
-  // For range commits (FROM..TO from git pull) raw_output already has enough context.
-  const getContentForAI = () => {
-    const isSingleHash = commit.commit_hash && !commit.commit_hash.includes('..');
-    if (isSingleHash && project?.path && fs.existsSync(project.path)) {
-      try {
-        return execFileSync(
-          'git', ['show', commit.commit_hash, '--format=%H %ad %an : %s', '--date=short'],
-          { cwd: project.path, encoding: 'utf8', timeout: 15000 }
-        );
-      } catch (e) {
-        console.warn('[analyze] git show failed, using raw_output:', e.message);
+  // Fetch the full diff so the AI sees actual code changes, not just the stat.
+  // Mirrors the /diff endpoint: range commits (FROM..TO) → `git diff FROM TO`,
+  // single hashes → `git diff HASH^1 HASH` (falls back to `git show` for the
+  // initial commit). Falls back to stored raw_output if git is unavailable.
+  const getDiffForAI = () => {
+    const rawHash = (commit.commit_hash || '').trim();
+    if (!rawHash || !project?.path || !fs.existsSync(project.path)) return commit.raw_output;
+    const opts = { cwd: project.path, encoding: 'utf8', timeout: 30000, maxBuffer: 20 * 1024 * 1024 };
+    try {
+      if (rawHash.includes('..')) {
+        const [from, to] = rawHash.split('..').map((h) => h.trim());
+        return execFileSync('git', ['diff', from, to, '--no-color'], opts);
       }
+      try {
+        return execFileSync('git', ['diff', rawHash + '^1', rawHash, '--no-color'], opts);
+      } catch {
+        return execFileSync('git', ['show', '--pretty=format:', '-p', '--no-color', rawHash], opts);
+      }
+    } catch (e) {
+      console.warn('[analyze] git diff failed, using raw_output:', e.message);
+      return commit.raw_output;
     }
-    return commit.raw_output;
   };
 
+  // Hand the full diff to analyzeForLedger, which applies ai_prompt_custom (the
+  // user's analysis FORMAT template) via buildPrompt and returns both the
+  // formatted description and a short notes summary in one call. The custom
+  // prompt must be a pure format spec — NOT an agentic workflow (git pull /
+  // curl / write files), or Claude tries to execute it under `claude -p`.
+  const fullDiff = getDiffForAI() || '';
+
+  // Backend-gathered context: tests in project.tests_path relevant to this diff.
+  let testContext = '';
+  if (project?.tests_path) {
+    try {
+      testContext = findRelevantTests(project.tests_path, fullDiff);
+    } catch (e) {
+      console.warn('[analyze] test match failed:', e.message);
+    }
+  }
+
+  // raw_output carries the commit header (hash/date/author/message) + stat that
+  // a bare `git diff` lacks; prepend it so the AI gets author & message too.
+  const aiContent = [commit.raw_output, fullDiff].filter(Boolean).join('\n\n').slice(0, 13000);
+
   Promise.resolve()
-    .then(() => analyzeWithAI(config, getContentForAI(), project?.name || 'Unknown', project?.path || ''))
-    .then((aiDescription) => {
-      const description = aiDescription
-        ? `${aiDescription}\n\n---\n\n${commit.description || ''}`
+    .then(() => analyzeForLedger(config, aiContent, project?.name || 'Unknown', project?.path || '', testContext, project?.tests_path || ''))
+    .then(({ description: ai, notes: aiNotes }) => {
+      const description = ai
+        ? (commit.description ? `${commit.description}\n\n---\n\n${ai}` : ai)
         : commit.description;
-      db.prepare('UPDATE commits SET description = ? WHERE id = ?').run(description, commit.id);
+      // Only fill notes if the user hasn't written any — never overwrite manual notes.
+      const notes = (commit.notes && commit.notes.trim()) ? commit.notes : (aiNotes || '');
+      db.prepare('UPDATE commits SET description = ?, notes = ? WHERE id = ?').run(description, notes, commit.id);
       return db.prepare('SELECT * FROM commits WHERE id = ?').get(commit.id);
     })
     .then((updated) => res.json(updated))

@@ -7,6 +7,7 @@
     "pullNoAI": "Git Pull (no AI)",
     "pullWithAI": "Git Pull + AI analysis",
     "deleteProject": "Delete project",
+    "editProject": "Edit project",
     "refreshGaps": "Check for missing commits",
     "catchUp": "Catch up: {count} missing",
     "gapBadgeTitle": "{count} commits not in journal — click to import"
@@ -46,6 +47,11 @@
     "cloneDone": "Cloned successfully",
     "cloneError": "Clone error: {message}",
     "errorRequired": "Both fields are required",
+    "testsPathLabel": "Tests folder (optional)",
+    "testsPathPlaceholder": "C:\\projects\\my-repo-tests",
+    "testsPathHelper": "Folder with automated tests — AI cross-references them in the analysis",
+    "editTitle": "Edit Project",
+    "save": "Save",
     "cancel": "Cancel",
     "submit": "Add Project"
   },
@@ -124,7 +130,9 @@
     "rawCollapse": "Collapse",
     "openOnGitHub": "Open commit on GitHub",
     "tabAnalysis": "Analysis",
-    "tabDiff": "Diff"
+    "tabDiff": "Diff",
+    "resetAnalysis": "Reset analysis",
+    "resetAnalysisConfirm": "Clear AI analysis for this commit? Notes will be preserved."
   },
   "settings": {
     "title": "Settings",

@@ -38,10 +38,10 @@ export default function ImportLogModal({ projects, selectedProjectId, onClose, o
   const hasPath = !!selectedProject?.path;
 
   useEffect(() => {
-    const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const handleKey = (e) => { if (e.key === 'Escape' && !status) onClose(); };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+  }, [onClose, status]);
 
   // Reset preview when project or dates change (not in catch-up mode — data is pre-loaded)
   useEffect(() => {
@@ -151,7 +151,7 @@ export default function ImportLogModal({ projects, selectedProjectId, onClose, o
               ? t('importLog.catchUpTitle', { count: catchUpCommits.length })
               : t('importLog.title')}
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <button onClick={onClose} disabled={!!status} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed">
             <X size={18} />
           </button>
         </div>

@@ -370,7 +370,7 @@ app.get('/api/projects/:id/log-preview', (req, res) => {
       const m = line.match(LOG_RE);
       if (!m) return null;
       const [, hash, date, author, message] = m;
-      const short = hash.slice(0, 8);
+      const short = hash.slice(0, 7);
       const exists = db.prepare(
         'SELECT id FROM commits WHERE project_id = ? AND commit_hash LIKE ?'
       ).get(project.id, `%${short}%`);
@@ -423,7 +423,7 @@ app.get('/api/projects/:id/gaps', (req, res) => {
       const m = line.match(LOG_RE);
       if (!m) return null;
       const [, hash, date, author, message] = m;
-      const short = hash.slice(0, 8);
+      const short = hash.slice(0, 7);
       const exists = db.prepare(
         'SELECT id FROM commits WHERE project_id = ? AND commit_hash LIKE ?'
       ).get(project.id, `%${short}%`);
@@ -477,7 +477,7 @@ app.post('/api/commits/import-log', (req, res) => {
   const saved = db.transaction(() =>
     entries
       .filter((e) => {
-        const short = e.commitHash.slice(0, 8);
+        const short = e.commitHash.slice(0, 7);
         return !db.prepare(
           'SELECT id FROM commits WHERE project_id = ? AND commit_hash LIKE ?'
         ).get(project_id, `%${short}%`);

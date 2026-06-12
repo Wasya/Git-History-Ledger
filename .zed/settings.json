@@ -1,0 +1,33 @@
+{
+  "tab_size": 2,
+  "languages": {
+    "JavaScript": {
+      "language_servers": ["typescript-language-server"],
+      "tab_size": 2
+    },
+    "JSX": {
+      "language_servers": ["typescript-language-server"],
+      "tab_size": 2
+    },
+    "JSON": {
+      "tab_size": 2
+    },
+    "CSS": {
+      "tab_size": 2
+    }
+  },
+  "lsp": {
+    "typescript-language-server": {
+      "initialization_options": {
+        "preferences": {
+          "includeInlayParameterNameHints": "literals",
+          "includeInlayParameterNameHintsWhenArgumentMatchesName": false,
+          "includeInlayFunctionParameterTypeHints": false,
+          "includeInlayVariableTypeHints": false,
+          "includeInlayPropertyDeclarationTypeHints": false,
+          "includeInlayFunctionLikeReturnTypeHints": false
+        }
+      }
+    }
+  }
+}

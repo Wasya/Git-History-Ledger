@@ -24,6 +24,10 @@ desktop.ini
 
 # Editor
 .vscode/
+.zed/
 .idea/
 *.swp
 *.swo
+
+# Notes / personal tools
+.obsidian/

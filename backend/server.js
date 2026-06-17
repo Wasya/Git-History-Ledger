@@ -37,6 +37,31 @@ function detectRemoteUrl(repoPath) {
   }
 }
 
+// Fetch the full diff so the AI sees actual code changes, not just the stat.
+// Range commits (FROM..TO) → `git diff FROM TO`; single hashes → `git diff
+// HASH^1 HASH` (falls back to `git show` for the initial commit). Falls back to
+// the stored stat-only raw_output if git is unavailable. Shared by /analyze
+// and /ask so both paths feed the model real code.
+function getDiffForAI(commit, project) {
+  const rawHash = (commit.commit_hash || '').trim();
+  if (!rawHash || !project?.path || !fs.existsSync(project.path)) return commit.raw_output;
+  const opts = { cwd: project.path, encoding: 'utf8', timeout: 30000, maxBuffer: 20 * 1024 * 1024 };
+  try {
+    if (rawHash.includes('..')) {
+      const [from, to] = rawHash.split('..').map((h) => h.trim());
+      return execFileSync('git', ['diff', from, to, '--no-color'], opts);
+    }
+    try {
+      return execFileSync('git', ['diff', rawHash + '^1', rawHash, '--no-color'], opts);
+    } catch {
+      return execFileSync('git', ['show', '--pretty=format:', '-p', '--no-color', rawHash], opts);
+    }
+  } catch (e) {
+    console.warn('[getDiffForAI] git diff failed, using raw_output:', e.message);
+    return commit.raw_output;
+  }
+}
+
 app.get('/api/projects', (req, res) => {
   const projects = db.prepare(
     'SELECT * FROM projects ORDER BY created_at DESC'
@@ -333,8 +358,15 @@ app.post('/api/commits/:id/ask', (req, res) => {
 
   const { messages } = req.body;
 
+  // Same as /analyze: feed the chat the real code diff, not the stat-only
+  // raw_output (git-log/gap-imported commits store only the stat). raw_output
+  // carries the commit header (author/message) a bare diff lacks, so prepend it.
+  const fullDiff = getDiffForAI(commit, project) || '';
+  const enrichedRaw = [commit.raw_output, fullDiff].filter(Boolean).join('\n\n');
+  const enrichedCommit = { ...commit, raw_output: enrichedRaw };
+
   Promise.resolve()
-    .then(() => askWithContext(config, commit, projectName, messages || [], project?.path || ''))
+    .then(() => askWithContext(config, enrichedCommit, projectName, messages || [], project?.path || ''))
     .then((reply) => res.json({ reply }))
     .catch((err) => {
       console.error('[commits/ask]', err.message);
@@ -501,36 +533,12 @@ app.post('/api/commits/:id/analyze', (req, res) => {
   const config = getConfig();
   if (!config.ai_provider) return res.status(400).json({ error: 'AI provider not configured' });
 
-  // Fetch the full diff so the AI sees actual code changes, not just the stat.
-  // Mirrors the /diff endpoint: range commits (FROM..TO) → `git diff FROM TO`,
-  // single hashes → `git diff HASH^1 HASH` (falls back to `git show` for the
-  // initial commit). Falls back to stored raw_output if git is unavailable.
-  const getDiffForAI = () => {
-    const rawHash = (commit.commit_hash || '').trim();
-    if (!rawHash || !project?.path || !fs.existsSync(project.path)) return commit.raw_output;
-    const opts = { cwd: project.path, encoding: 'utf8', timeout: 30000, maxBuffer: 20 * 1024 * 1024 };
-    try {
-      if (rawHash.includes('..')) {
-        const [from, to] = rawHash.split('..').map((h) => h.trim());
-        return execFileSync('git', ['diff', from, to, '--no-color'], opts);
-      }
-      try {
-        return execFileSync('git', ['diff', rawHash + '^1', rawHash, '--no-color'], opts);
-      } catch {
-        return execFileSync('git', ['show', '--pretty=format:', '-p', '--no-color', rawHash], opts);
-      }
-    } catch (e) {
-      console.warn('[analyze] git diff failed, using raw_output:', e.message);
-      return commit.raw_output;
-    }
-  };
-
   // Hand the full diff to analyzeForLedger, which applies ai_prompt_custom (the
   // user's analysis FORMAT template) via buildPrompt and returns both the
   // formatted description and a short notes summary in one call. The custom
   // prompt must be a pure format spec — NOT an agentic workflow (git pull /
   // curl / write files), or Claude tries to execute it under `claude -p`.
-  const fullDiff = getDiffForAI() || '';
+  const fullDiff = getDiffForAI(commit, project) || '';
 
   // Backend-gathered context: tests in project.tests_path relevant to this diff.
   let testContext = '';

@@ -209,6 +209,10 @@ async function analyzeForLedger(config, gitOutput, projectName, projectPath, tes
   }
 
   prompt += ru
+    ? `\n\nНапоминание: пути к файлам в промпте (testsPath и др.) — справочная информация. Тебе НЕ нужен доступ к файловой системе — весь код уже есть в diff-блоке. НЕ пиши фраз типа «нет доступа к репозиторию», «не могу открыть файл» и т.п. — просто анализируй предоставленный diff.`
+    : `\n\nReminder: file paths in the prompt (testsPath etc.) are reference info only. You do NOT need filesystem access — all code is already in the diff block. Do NOT write phrases like "no access to repository", "cannot open file", etc. — just analyze the provided diff.`;
+
+  prompt += ru
     ? `\n\nВ САМОМ КОНЦЕ ответа, на отдельной строке, выведи маркер ${NOTES_MARKER}, а после него — 1–3 предложения краткой сути изменения без форматирования (что сделано, почему важно, на что влияет).`
     : `\n\nAT THE VERY END, on its own line, output the marker ${NOTES_MARKER} followed by a 1–3 sentence plain-text summary (what was done, why it matters, what it affects).`;
 
@@ -256,20 +260,20 @@ async function testConnection(config) {
 
 function buildContextSystem(commit, projectName, config, projectPath) {
   const ru = (config.ai_prompt_lang || 'ru') !== 'en';
-  const raw  = (commit.raw_output   || '').slice(0, 5000);
+  // raw_output may now carry the full git diff (enriched by /ask), not just the
+  // stat — keep a generous cap so real code reaches the model.
+  const raw  = (commit.raw_output   || '').slice(0, 12000);
   const desc = (commit.description  || '').slice(0, 3000);
 
   if (ru) {
-    let ctx = `Ты — технический аналитик изменений кода. Помогай пользователю разобраться в изменениях проекта "${projectName}".`;
-    if (projectPath) ctx += `\nПуть к репозиторию: ${projectPath}`;
-    ctx += `\n\nВывод git pull:\n\`\`\`\n${raw}\n\`\`\``;
+    let ctx = `Ты — технический аналитик изменений кода. Помогай пользователю разобраться в изменениях проекта "${projectName}". Весь нужный код приведён ниже — НЕ пиши, что нет доступа к репозиторию или файлам.`;
+    ctx += `\n\nИзменения коммита (заголовок + git diff):\n\`\`\`\n${raw}\n\`\`\``;
     if (desc) ctx += `\n\nСуществующий анализ:\n${desc}`;
     ctx += '\n\nОтвечай на русском языке, кратко и по делу.';
     return ctx;
   } else {
-    let ctx = `You are a code change analyst. Help the user understand changes in project "${projectName}".`;
-    if (projectPath) ctx += `\nRepository path: ${projectPath}`;
-    ctx += `\n\nGit pull output:\n\`\`\`\n${raw}\n\`\`\``;
+    let ctx = `You are a code change analyst. Help the user understand changes in project "${projectName}". All necessary code is provided below — do NOT say you lack access to the repository or files.`;
+    ctx += `\n\nCommit changes (header + git diff):\n\`\`\`\n${raw}\n\`\`\``;
     if (desc) ctx += `\n\nExisting analysis:\n${desc}`;
     ctx += '\n\nBe concise and to the point.';
     return ctx;

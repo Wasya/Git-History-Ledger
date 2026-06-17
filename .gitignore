@@ -10,6 +10,9 @@ node_modules/
 _work/
 TODO.md
 
+# Local MCP config (has machine-specific paths)
+.mcp.json
+
 # Claude Code internal files
 .claude/
 CLAUDE.md
